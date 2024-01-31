@@ -7,8 +7,6 @@ using GCIdentifier
 using DelimitedFiles
 using LinearAlgebra
 
-@__DIR__
-
 components_names = ["carbon dioxide", "carbon monoxide", "hydrogen", "water", "methane"]
 abspath(joinpath(@__DIR__, "myShomate.csv"))
 syngas_prop_model =  ShomateIdeal(components_names; userlocations = [abspath(joinpath(@__DIR__, "myShomate.csv"))])
@@ -46,9 +44,9 @@ end
 
 H₀_S₀ = readEnthalpyEntropyData(abspath(joinpath(@__DIR__, "Hf0_Sf0.tsv")), components_names)
 
-@register Entropy_TP1(T, P, H₀_S₀, ξ, ν, model, f_feed)
+@register_symbolic Entropy_TP1(T, P, H₀_S₀, ξ, ν, model, f_feed)
 
-function Entropy_TP1(T, P, H₀_S₀, ξ, ν, model, f_feed)
+function Entropy_TP(T, P, H₀_S₀, ξ_1, ξ_2, ν, model, f_feed)
     # Calculate the entropy of the system (J)      
 
     f_prod = f_feed + ν*ξ 
@@ -68,8 +66,9 @@ end
 
 vars = @variables begin
     (T = 600.0), [description = "Reactor temperature"]
-    (ξ[1:n_reactions] = 0.5), [description = "Extend of each independent reaction"]
-    (entropy_tp = 0.0), [description = "Entropy of the system"]
+    (ξ_1 = 0.5), [description = "Extent of rxn 1"]
+    (ξ_2 = 0.5), [description = "Extent of rxn 2"]
+    (s = 0.0), [description = "Entropy of the system"]
 end
 
 pars = @parameters begin
@@ -80,5 +79,5 @@ end
 
 # TODO: structural_simplify optimization system.
 eqns = [
-entropy_tp ~ Entropy_TP1(T, P, H₀_S₀, ξ, ν, syngas_prop_model, f_feed)
+    s ~ Entropy_TP(T, P, H₀_S₀, ξ, ν, syngas_prop_model, f_feed)
 ]
