@@ -3,6 +3,9 @@ uuid = "8886c03b-4dde-4be1-b6ee-87d056f985b8"
 authors = ["Avinash Subramanian"]
 version = "1.0.0-DEV"
 
+[deps]
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+
 [compat]
 julia = "1.10"
 
