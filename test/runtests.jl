@@ -1,6 +1,7 @@
 using ProcessSimulator
 using Test
+using SafeTestsets
 
-@testset "ProcessSimulator.jl" begin
-    # Write your tests here.
+@safetestset "Gibbs reactor" begin
+     include("Reactor_tests/gibbs_tests.jl")
 end
