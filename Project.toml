@@ -4,6 +4,7 @@ authors = ["Avinash Subramanian"]
 version = "1.0.0-DEV"
 
 [deps]
+<<<<<<< HEAD
 Clapeyron = "7c7805af-46cc-48c9-995b-ed0ed2dc909a"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 GCIdentifier = "b7ea765e-cbac-4e4a-9b0d-5427cc302506"
@@ -13,6 +14,9 @@ SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
+=======
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+>>>>>>> 81cec7f3e100786454f9973d0a4d7490db64c937
 
 [compat]
 julia = "1.10"
