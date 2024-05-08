@@ -2,13 +2,10 @@ module ProcessSimulator
 
 
 using ModelingToolkit, JSON , DifferentialEquations
+using ModelingToolkit: t_nounits as t, D_nounits as D
 import ModelingToolkit: scalarize, equations, get_unknowns
 using Clapeyron
 using NonlinearSolve
-
-# Write your package code here.
-export Gibbs
-include("Reactors/Gibbs.jl")
 
 
 export MaterialSource

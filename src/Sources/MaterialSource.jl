@@ -1,17 +1,18 @@
-@component function MaterialSource(; substances_user = ["methane", "carbon monoxide"], model = PR(substances_user), properties = Dict(subs => load_component_properties(subs) for subs in substances_user),
+@component function MaterialSource(; substances_user = ["methane", "carbon monoxide"], Nc = size(substances_user, 1),
+     model = PR(substances_user), properties = Dict(subs => load_component_properties(subs) for subs in substances_user),
     P_user = 101325.0, T_user = 25.0 + 273.15, Fₜ = 100.0, zₜ = [0.5, 0.5], name)
     #phase 1 is total, 2 is vapor, 3 is liquid
 
     
     MWs = Dict(subs => properties[subs]["MW"] for subs in substances_user) # TODO: Also read parameters from the properties dictionary. So far it's comming from clapeyron.jl
-    Nc = size(substances_user, 1) #Numeric number of components
     
     pars = @parameters begin
-        N = size(substances_user, 1), [description = "Number of components", tunable = false]
-        substances[1:Nc] = substances_user, [description = "Component names", tunable = false]
-        P = P_user, [description = "Pressure (Pa)", tunable = false]
-        T = T_user, [description = "Temperature (K)",tunable = false]
-        MWⱼ[1:Nc] = [MWs[subs] for subs in substances_user], [description = "Molar mass of each phase j (kg/mol)"] # 14
+        N = Nc, [description = "Number of components"]
+        substances[1:Nc] = substances_user, [description = "Component names"]
+        P = P_user, [description = "Pressure (Pa)"]
+        T = T_user, [description = "Temperature (K)"]
+        MWⱼ[1:Nc] = [MWs[subs] for subs in substances_user], [description = "Molar mass of each phase j (g/mol)"] # 14
+        gramsToKilograms = 10^(-3), [description = "Conversion factor from g to kg"]
     end 
 
     vars = @variables begin
@@ -21,12 +22,12 @@
         α_l(t), [description = "Liquid phase molar fraction"]
         αᵂ_g(t), [description = "Vapor phase mass fraction"]
         αᵂ_l(t), [description = "Liquid phase mass fraction"]
-        (Fⱼ(t))[1:3], [description = "Molar flow rate in each phase j (kmol/s)"]
+        (Fⱼ(t))[1:3], [description = "Molar flow rate in each phase j (mol/s)"]
         (Fᵂⱼ(t))[1:3], [description = "Mass flow rate in each phase j (kg/s)"]
         (zⱼᵢ(t))[1:3, 1:Nc], [description = "Component molar fraction in each phase (-)"] # 6
         (zᵂⱼᵢ(t))[1:3, 1:Nc], [description = "Component mass fraction in each phase (-)"] # 6
-        (Fⱼᵢ(t))[1:3, 1:Nc], [description = "Molar flow rate in each phase j and component i (kmol/s)"] # 6
-        (Fᵂⱼᵢ(t))[1:3, 1:Nc], [description = "Mass flow rate in each phase j and component i (kmol/s)"] #6
+        (Fⱼᵢ(t))[1:3, 1:Nc], [description = "Molar flow rate in each phase j and component i (mol/s)"] # 6
+        (Fᵂⱼᵢ(t))[1:3, 1:Nc], [description = "Mass flow rate in each phase j and component i (mol/s)"] #6
         #Cpⱼ[1:3], [description = "Heat capacity in each phase j at T and P (J/mol.K)"]
         (Hⱼ(t))[1:3], [description = "Enthalpy in each phase j at T and P (J/mol)"] #3
         (Sⱼ(t))[1:3], [description = "Entropy in each phase j at T and P (J/mol.K)"] #3
@@ -69,7 +70,7 @@
         scalarize(Fᵂⱼ[:] .~ sum(Fᵂⱼᵢ[:, :], dims = 2))...
     ]
 
-    molar_to_mass_2 = [scalarize(Fᵂⱼᵢ[:, i] .~ MWⱼ[i]*Fⱼᵢ[:, i] ) for i in 1:Nc]
+    molar_to_mass_2 = [scalarize(Fᵂⱼᵢ[:, i] .~ (MWⱼ[i]*gramsToKilograms)*Fⱼᵢ[:, i] ) for i in 1:Nc]
     
     molar_to_mass = [molar_to_mass...; molar_to_mass_2...]
     
@@ -79,10 +80,13 @@
 
     #Phase check
     Tc, Pc, Vc = crit_mix(model, zₜ) #Critical point of the mixture
+    Pdew, Vᵍdew, Vˡdew, xdew = dew_pressure(model, T_user, zₜ)
+    Pbuble, Vᵍbuble, Vˡbuble, xbuble = bubble_pressure(model, T_user, zₜ)
+
     if T_user > Tc
         pc = [α_g ~ 1.0
-            P_buble ~ 0.0
-            P_dew ~ 0.0
+            P_buble ~ Pbuble
+            P_dew ~ Pdew
             Hⱼ[1] ~ Hⱼ[2]
             Hⱼ[3] ~ 0.0
             Hⱼ[2] ~ enthalpy(model, P_user, T_user, zₜ, phase = :vapor)
@@ -98,9 +102,6 @@
             scalarize(Fᵂⱼᵢ[2, :] .~ Fᵂⱼ[2].*zᵂⱼᵢ[2, :])... # Mass base
               ]
     else
-
-        Pdew, Vᵍdew, Vˡdew, xdew = dew_pressure(model, T_user, zₜ)
-        Pbuble, Vᵍbuble, Vˡbuble, xbuble = bubble_pressure(model, T_user, zₜ)
 
         if P_user < Pdew
             pc = [α_g ~ 1.0

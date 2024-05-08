@@ -1,6 +1,5 @@
-
-
 @parameters t
+D = Differential(t)
 
 @connector function matcon(; Nc = 2, name)
     
@@ -24,7 +23,7 @@
 
 end
 
-matcon(Nc = 2, name = :test)
+matcon(Nc = 2, name = "test")
 
 
 
