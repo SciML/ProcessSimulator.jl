@@ -1,0 +1,40 @@
+"""
+    load_component_properties(filepath::String)
+
+Load component properties from a file.
+
+# Arguments
+- `filepath::String`: Path to the file containing the component properties.
+
+# Returns
+- `properties::Dict`: A dictionary containing the component properties.
+"""
+function load_component_properties(component_name::String)
+    file_path = abspath(joinpath(@__DIR__, "OMChemSimDataBase/$(component_name).json"))
+    println(file_path)
+    if isfile(file_path)
+        return JSON.parsefile(file_path)
+    else
+        error("Component file does not exist: $file_path")
+    end
+end
+
+
+function read_reidcp(data, substances)
+    a = []
+    b = []
+    c = []
+    d = []
+    e = []
+
+    for i in eachindex(substances)
+        reidcp = data[substances[i]]["ReidCp"]
+        push!(a, Float64(reidcp[1]))
+        push!(b, Float64(reidcp[2]))
+        push!(c, Float64(reidcp[3]))
+        push!(d, Float64(reidcp[4]))
+        push!(e, Float64(reidcp[5]))
+    end
+
+    return (a = Float64.(a), b = Float64.(b), c = Float64.(c), d = Float64.(d), e = Float64.(e))
+end

@@ -1,33 +1,16 @@
-@parameters t
-@component function KineticReactionNetwork(;substances_user = ["methane", "carbon monoxide"], Coef_Cr::Array = [-1.0 1.0], Af_r::Array, Ef_r::Array,
-     Do_r::Array, Nc::Int = size(substances_user, 1), Nri::Int = size(Coef_Cr, 1), name)
-    
-    pars = @parameters begin
-        Nr = Nri
-        Coef_Cr[1:Nri, 1:Nc] = Coef_Cr, [description = "Stoichiometric coefficients of each component in each reaction (-)"]
-        Af_r[1:Nri] = Af_r, [description = "Arrhenius constant of each reaction at given temperature ()"]
-        Ef_r[1:Nri] = Ef_r, [description = "Activation energy of each reaction at given temperature ()"]
-        Do_r[1:Nri, 1:Nc] = Do_r, [description = "Forward order of the components (-) "]
-    end 
-
-
-    vars = []
-
-    unfold_pars = []
-    for par in pars
-        unfold_pars = [unfold_pars...; par...]
-    end
-
-    
-    unfold_vars = []
-    for var in vars
-        unfold_vars = [unfold_vars...; var...]
-    end
-
-    ODESystem(Equation[], t, unfold_vars, unfold_pars; name)
+Base.@kwdef struct KineticReactionNetwork
+    Coef_Cr::Array{Float64, 2} #Stoichiometric coefficients of each component in each reaction (-)
+    Do_r::Array{Float64, 2} # Forward order of the components ()
+    substances_user::Array{String, 1} #Substances in the reaction network
+    Nc::Int = size(substances_user)[1] #Number of components in the reaction network
+    Nri::Int = size(Coef_Cr, 1) #Number of reactions in the reaction network (r)
+    Af_r #Arrhenius constant of each reaction (s⁻¹)
+    Ef_r #Activation energy of each reaction (J.mol⁻¹)
+    name::String
 end
 
+my_reaction = KineticReactionNetwork(;substances_user = ["a","b"], 
+Af_r = 2, Ef_r = 2, Coef_Cr = [1.0 1.0], Do_r = [1.0 1.0], name = "ReactionNetwork")
 
-a = KineticReactionNetwork(Af_r = [1.0], Ef_r = [1.0], Do_r = [1.0 1.0], name = :Reaction)
-parameters(a)[1]
+my_reaction.Nc
 
