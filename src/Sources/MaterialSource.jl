@@ -40,7 +40,7 @@
     end
 
     systems = @named begin 
-        Out = matcon(; Nc = Nc)
+        Out = matcon(; Nc = Nc, P_start )
     end
 
     #Connector equations

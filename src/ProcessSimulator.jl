@@ -11,6 +11,8 @@ export load_component_properties, read_reidcp, my_model, enthalpy_simple, molar_
 include("utils")
 include("Reactors/ReactionManager/KineticReaction.jl")
 include("Reactors/SimplifiedCSTR.jl")
+
+export MaterialSource
 include("Sources/MaterialSource.jl")
 include("Sources/Sourceutils.jl")
 end

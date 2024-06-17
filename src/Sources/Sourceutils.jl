@@ -1,19 +1,33 @@
-@connector function matcon(; Nc, name)
+@connector function matcon(; Nc, name, 
+        P_start, 
+        T_start,
+        F_start,
+        Fʷ_start,
+        H_start,
+        S_start,
+        z₁_start,
+        z₂_start,
+        z₃_start,
+        α_g_start,
+        ρ_start,
+        ρʷ_start,
+        MW_start
+    )
 
     vars = @variables begin
-    P(t), [connect = Flow] # Pressure (Pa) 
-    T(t), [connect = Flow] # Temperature (K)
-    F(t), [connect = Flow] # Molar Flow rate (mol/s)
-    Fʷ(t), [connect = Flow] # Mass Flow rate (kg/s)
-    H(t), [connect = Flow] # Enthalpy (J/mol)
-    S(t), [connect = Flow] # Entropy (J/mol.K)
-    (z₁(t))[1:Nc], [connect = Flow] # component molar fraction global (mol/mol)  
-    (z₂(t))[1:Nc], [connect = Flow] # component molar fraction in vapor phase (mol/mol)
-    (z₃(t))[1:Nc], [connect = Flow] # component molar fraction in liquid phase (mol/mol) 
-    α_g(t), [connect = Flow] # gas phase fraction (mol/mol) 
-    ρ(t), [connect = Flow] # Molar density (mol/m³)
-    ρʷ(t), [connect = Flow] # Mass density (kg/m³)
-    (MW(t))[1:3], [connect = Flow] # Molar mass (g/mol)
+        P(t), [guess = P_start, connect = Flow, description = "Pressure (Pa)"] 
+        T(t), [connect = Flow] # Temperature (K)
+        F(t), [connect = Flow] # Molar Flow rate (mol/s)
+        Fʷ(t), [connect = Flow] # Mass Flow rate (kg/s)
+        H(t), [connect = Flow] # Enthalpy (J/mol)
+        S(t), [connect = Flow] # Entropy (J/mol.K)
+        (z₁(t))[1:Nc], [connect = Flow] # component molar fraction global (mol/mol)  
+        (z₂(t))[1:Nc], [connect = Flow] # component molar fraction in vapor phase (mol/mol)
+        (z₃(t))[1:Nc], [connect = Flow] # component molar fraction in liquid phase (mol/mol) 
+        α_g(t), [connect = Flow] # gas phase fraction (mol/mol) 
+        ρ(t), [connect = Flow] # Molar density (mol/m³)
+        ρʷ(t), [connect = Flow] # Mass density (kg/m³)
+        (MW(t))[1:3], [connect = Flow] # Molar mass (g/mol)
     end
 
     unfold_vars = []
