@@ -22,12 +22,11 @@
     
     #Connection and reaction constants
     Nri = defaults(Reaction)[@nonamespace Reaction.Nr]
-    Ni_InPorts = ninports
 
     pars = @parameters begin 
         ## How to inherent parameters from Reaction?
         height_out = height_out_port, [description = "Height of the outlet stream port with reference from the bottom of the tank (m)"]
-        N_InPorts = Ni_InPorts
+        N_InPorts = ninports
         Nr = Nri, [description = "Number of reactions"]
         Af_r[1:Nri] = defaults(Reaction)[@nonamespace Reaction.Af_r], [description = "Arrhenius constant of each reaction at given temperature ()"]
         Coef_Cr[1:Nri, 1:Nc] = defaults(Reaction)[@nonamespace Reaction.Coef_Cr], [description = "Stoichiometric coefficients of each component in each reaction (-)"]
@@ -149,7 +148,7 @@
 
 end
 
-
+#= 
 using ModelingToolkit, JSON, DifferentialEquations
 using ModelingToolkit: t_nounits as t, D_nounits as D
 import ModelingToolkit: scalarize, equations, get_unknowns, defaults
@@ -161,20 +160,36 @@ D = Differential(t)
 include("C:/Users/Vinic/OneDrive/Pos-Doc/Flowsheeting/ProcessModeling/ProcessSimulator.jl/src/utils")
 include("C:/Users/Vinic/OneDrive/Pos-Doc/Flowsheeting/ProcessModeling/ProcessSimulator.jl/src/Sources/Sourceutils.jl")
 substances_user = ["water", "methanol", "propyleneglycol","methyloxirane"]
-smiles = ["CO", "CC(CO)O"]
+Nc = size(substances_user, 1)
+#substances_user = ["water"]
 properties = Dict(subs => load_component_properties(subs) for subs in substances_user)
 # Function to extract parameters for ReidIdeal model
+read_reidcp(properties, substances_user)
 
-Nc = size(substances_user, 1)
-idealmodel = ReidIdeal(substances_user; userlocations = read_reidcp(properties, substances_user))
-pcpsaft = PCPSAFT(substances_user, idealmodel = idealmodel)
+
+cp_params = (a = [36.54206320678348, 39.19437678197436, 25.7415, 34.91747774761048], b = [-0.03480434051958945, -0.05808483585041852, 0.2355, -0.014935581577635826], c = [0.000116818199785053, 0.0003501220208504329, 0.0001578, 0.000756101594841365], d = [-1.3003819534791665e-7, -3.6941157412454843e-7, -4.0939e-7, -1.0894144551347726e-6], e = [5.2547403746728466e-11, 1.276270011886522e-10, 2.1166e-10, 4.896983427747592e-10])
+idealmodel = ReidIdeal(["water", "methanol", "propyleneglycol","methyloxirane"]; userlocations = cp_params)
+pcpsaft = PCPSAFT(["water", "methanol", "propyleneglycol","methyloxirane"], idealmodel = idealmodel)
 phase = :liquid
 model = pcpsaft
-#isobaric_heat_capacity(idealmodel, 101325, 300.0, 1., phase = :liquid)
-z = [1.0, 0.0, 0.0, 0.0]
-@time heat_capacity = isobaric_heat_capacity(pcpsaft, 101325, 298.0, z, phase = :liquid)/sum(z)
-enthalpy(pcpsaft, 101325, 298.0, z, phase = :liquid)
-molar_density(pcpsaft, 101325, 298.0, z, phase = :liquid)
+ΔT = 10.
+Ts = Base._linspace(298.00, 370.0, 20) |> collect
+println(Ts)
+z = [1.0, 1.0, 1.0, 1.0]
+isobaric_heat_capacity(pcpsaft, 101325., 298.00, z, phase = :liquid)
+bubble_temperature(pcpsaft, 5*101325., z)
+molar_density(pcpsaft, 5*101325, 350.15, z, phase = :liquid)
+rhos = [molar_density(pcpsaft, 5*101325, T, z, phase = :liquid) for T in Ts]
+enthalpy(pcpsaft, eps(1.), 298.00, z)
+
+isobaric_heat_capacity(IAPWS95(), 101325, 298.0, 1.)
+
+cp_w = (a = [36.54206320678348], b = [-0.03480434051958945], c = [0.000116818199785053], d = [-1.3003819534791665e-7], e = [5.2547403746728466e-11])
+ideal_water = ReidIdeal(["water"]; userlocations = cp_w)
+pcpwater = PCPSAFT(["water"], idealmodel = ideal_water)
+isobaric_heat_capacity(pcpwater, 101325, 298.00, 1., phase = :liquid)
+enthalpy(pcpwater, 101325, 298.00, 1., phase = :liquid)
+
 
 Reaction = KineticReactionNetwork(;substances_user = substances_user, 
 Af_r = 4.71e9, Ef_r = 32400*1055.6/453.6, Coef_Cr = [-1.0 0.0 1.0 -1.0], 
@@ -196,12 +211,10 @@ Rᵍ = 8.314 # J/(mol K)
 MWs = [properties[subs]["MW"] for subs in substances_user]
 ΔH₀f = [properties[subs]["IGHF"]/10^3 for subs in substances_user] # (IG formation enthalpy) J/mol
 
-#Connection and reaction constants
-Ni_InPorts = ninports
+
 pars = @parameters begin 
-## How to inherent parameters from Reaction?
 height_out = height_out_port, [description = "Height of the outlet stream port with reference from the bottom of the tank (m)"]
-N_InPorts = Ni_InPorts
+N_InPorts = ninports
 Nr = Nri, [description = "Number of reactions"]
 Af_r[1:Nri] = Reaction.Af_r, [description = "Arrhenius constant of each reaction at given temperature ()"]
 Coef_Cr[1:Nri, 1:Nc] = Reaction.Coef_Cr, [description = "Stoichiometric coefficients of each component in each reaction (-)"]
@@ -211,7 +224,7 @@ N = Nc, [description = "Number of components"]
 A = Ac, [description = "Cross sectional area of the tank (m²)"]
 end
 
-    
+@variables v
     
 OutPorts = @named begin
     Out = matcon(; Nc = Nc) 
@@ -321,4 +334,4 @@ out_conn = [Out.P ~ P_out
 
     eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;
     out_conn_phases...; mass_balance...; component_balance...; energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
-    pressure_out...; density_eqs...; globalEnthalpy_eq...; molar_mass...; entropy_eq...]
+    pressure_out...; density_eqs...; globalEnthalpy_eq...; molar_mass...; entropy_eq...] =#

@@ -1,29 +1,25 @@
-@component function MaterialSource(; substances_user = ["methane", "carbon monoxide"],
-     Nc = size(substances_user, 1),
-     model = PR(substances_user),
+@component function MaterialSource(;substances_user ,
+    Nc = size(substances_user, 1),
+    model,
     properties = Dict(subs => load_component_properties(subs) for subs in substances_user),
-    P_user = 101325.0, T_user = 25.0 + 273.15,
-     Fₜ_user = 100.0, zₜ_user = [0.5, 0.5], name)
+    P_user, T_user,
+    Fₜ_user, zₜ_user, name)
     #phase 1 is total, 2 is vapor, 3 is liquid
 
+    @assert sum(zₜ_user) ≈ 1.0 "Sum of fractions is not close to one"
     
     Tcs = [properties[subs]["Tc"] for subs in substances_user] #Critical temperature (K)
     MWs = [properties[subs]["MW"] for subs in substances_user] #Molecular weight (g/mol)
     ΔH₀f = [properties[subs]["IGHF"]/10^3 for subs in substances_user] # (IG formation enthalpy) J/mol
     gramsToKilograms = 10^(-3)
 
-    pars = @parameters begin
-        N = Nc, [description = "Number of components"]
-        substances[1:Nc] = substances_user, [description = "Component names"]
-        P = P_user, [description = "Pressure (Pa)"]
-        T = T_user, [description = "Temperature (K)"]
-        zₜ[1:Nc] = zₜ_user, [description = "Components molar fraction (-)"]
-        Fₜ = Fₜ_user, [description = "Total molar flow rate (mol/s)"]
-    end 
-
     vars = @variables begin
-        Tc(t), [description = "Critical temperature (K)"]
-        Pc(t), [description = "Critical pressure (Pa)"]
+        P(t), [description = "Pressure (Pa)", input = true]
+        T(t), [description = "Temperature (K)", input = true]
+        (zₜ(t))[1:Nc], [description = "Components molar fraction (-)", input = true]
+        Fₜ(t), [description = "Total molar flow rate (mol/s)", input = true]
+        Tc(t), [description = "Critical temperature (K)", output = true]
+        Pc(t), [description = "Critical pressure (Pa)", output = true]
         P_buble(t), [description = "Bubble point pressure (Pa)"]
         P_dew(t), [description = "Dew point pressure (Pa)"]
         α_g(t), [description = "Vapor phase molar fraction"]
@@ -49,19 +45,25 @@
 
     #Connector equations
     eqs_conn = [
-        Out.P ~ P 
-        Out.T ~ T  
-        Out.F ~ - Fₜ # F is negative as it is leaving the component 
+        P ~ P_user
+        T ~ T_user
+        scalarize(zₜ .~ zₜ_user)...
+        Fₜ ~ Fₜ_user
+
+        #Out stuff
+        Out.P ~ - P 
+        Out.T ~ - T  
+        Out.F ~ - Fₜ # F is negative as it is leaving the pbject
         Out.Fʷ ~ - Fᵂⱼ[1]
-        Out.H ~ Hⱼ[1] 
-        Out.S ~ Sⱼ[1] 
-        scalarize(Out.z₁ .- zⱼᵢ[1, :] .~ 0.0)...
-        scalarize(Out.z₂ .- zⱼᵢ[2, :] .~ 0.0)...
-        scalarize(Out.z₃ .- zⱼᵢ[3, :] .~ 0.0)...
-        Out.α_g ~ α_g 
-        Out.ρ ~ ρ[1]
-        Out.ρʷ ~ ρʷ[1] 
-        scalarize(Out.MW .~ MWⱼ)...
+        Out.H ~ - Hⱼ[1] 
+        Out.S ~ - Sⱼ[1] 
+        scalarize(Out.z₁ .+ zⱼᵢ[1, :] .~ 0.0)...
+        scalarize(Out.z₂ .+ zⱼᵢ[2, :] .~ 0.0)...
+        scalarize(Out.z₃ .+ zⱼᵢ[3, :] .~ 0.0)...
+        Out.α_g ~ - α_g 
+        Out.ρ ~ - ρ[1]
+        Out.ρʷ ~ - ρʷ[1] 
+        scalarize(Out.MW .~ - MWⱼ)...
     ]
 
     #Global Mass and Molar balances
@@ -92,9 +94,9 @@
 
 
     #Phase check
-    #Tci, Pci, Vc = crit_mix(model, zₜ_user) #Critical point of the mixture
+    #Tci, Pci, Vc = crit_mix(model, zₜ_user) #Critical point of the mixture (Removed as too time consuming to calculate)
     Tci = minimum(Tcs)
-    Pci = NaN
+    Pci = 0.0
     Pdew, Vᵍdew, Vˡdew, xdew = dew_pressure(model, T_user, zₜ_user)
     Pbuble, Vᵍbuble, Vˡbuble, xbuble = bubble_pressure(model, T_user, zₜ_user)
 
@@ -104,25 +106,25 @@
             Pc ~ Pci
             P_buble ~ Pbuble
             P_dew ~ Pdew
-            Hⱼ[1] ~ Hⱼ[2]
+            Hⱼ[1] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :vapor) + sum(zₜ_user.*ΔH₀f)
+            Hⱼ[2] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :vapor) + sum(zₜ_user.*ΔH₀f)
             Hⱼ[3] ~ 0.0
-            Hⱼ[2] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :vapor)
             Sⱼ[1] ~ Sⱼ[2]
             Sⱼ[3] ~ 0.0
             Sⱼ[2] ~ entropy(model, P_user, T_user, zₜ_user, phase = :vapor)
+            scalarize(zⱼᵢ[1, :] .~ zₜ)...
             scalarize(zⱼᵢ[2, :] .~ zₜ)...
             scalarize(zⱼᵢ[3, :] .~ 0.0)...
-            scalarize(zⱼᵢ[1, :] .~ zₜ)...
             scalarize(zᵂⱼᵢ[3, :] .~ 0.0)... # Mass base 
             scalarize(zᵂⱼᵢ[1, :] .~ zᵂⱼᵢ[2, :])... # Mass base
             scalarize(Fᵂⱼᵢ[2, :] .~ Fᵂⱼ[2].*zᵂⱼᵢ[2, :])... # Mass base
-            ρ[1] ~ ρ[2]
+            ρ[1] ~ molar_density(model, P_user, T_user, zₜ_user, phase = :vapor)
             ρ[2] ~ molar_density(model, P_user, T_user, zₜ_user, phase = :vapor)
             ρ[3] ~ 0.0
-            ρʷ[1] ~ ρʷ[2]
+            ρʷ[1] ~ mass_density(model, P_user, T_user, zₜ_user, phase = :vapor)
             ρʷ[2] ~ mass_density(model, P_user, T_user, zₜ_user, phase = :vapor)
             ρʷ[3] ~ 0.0
-            MWⱼ[1] ~ MWⱼ[2]
+            MWⱼ[1] ~ sum(MWs.*zⱼᵢ[2, :]*gramsToKilograms)
             MWⱼ[2] ~ sum(MWs.*zⱼᵢ[2, :]*gramsToKilograms)
             MWⱼ[3] ~ 0.0         
               ]
@@ -134,25 +136,25 @@
                 Pc ~ Pci
                 P_buble ~ Pbuble
                 P_dew ~ Pdew
-                Hⱼ[1] ~ Hⱼ[2]
+                Hⱼ[1] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :vapor) + sum(zₜ_user.*ΔH₀f)
                 Hⱼ[2] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :vapor) + sum(zₜ_user.*ΔH₀f)
                 Hⱼ[3] ~ 0.0
                 Sⱼ[1] ~ Sⱼ[2]
                 Sⱼ[2] ~ entropy(model, P_user, T_user, zₜ_user, phase = :vapor) 
                 Sⱼ[3] ~ 0.0
+                scalarize(zⱼᵢ[1, :] .~ zₜ)...
                 scalarize(zⱼᵢ[2, :] .~ zₜ)...
                 scalarize(zⱼᵢ[3, :] .~ 0.0)...
-                scalarize(zⱼᵢ[1, :] .~ zₜ)...
                 scalarize(zᵂⱼᵢ[3, :] .~ 0.0)... # Mass base 
                 scalarize(zᵂⱼᵢ[1, :] .~ zᵂⱼᵢ[2, :])... # Mass base
                 scalarize(Fᵂⱼᵢ[2, :] .~ Fᵂⱼ[2].*zᵂⱼᵢ[2, :])... # Mass base
-                ρ[1] ~ ρ[2]
+                ρ[1] ~ molar_density(model, P_user, T_user, zₜ_user, phase = :vapor)
                 ρ[2] ~ molar_density(model, P_user, T_user, zₜ_user, phase = :vapor)
                 ρ[3] ~ 0.0
-                ρʷ[1] ~ ρʷ[2]
+                ρʷ[1] ~ mass_density(model, P_user, T_user, zₜ_user, phase = :vapor)
                 ρʷ[2] ~ mass_density(model, P_user, T_user, zₜ_user, phase = :vapor)
                 ρʷ[3] ~ 0.0
-                MWⱼ[1] ~ MWⱼ[2]
+                MWⱼ[1] ~ sum(MWs.*zⱼᵢ[2, :]*gramsToKilograms)
                 MWⱼ[2] ~ sum(MWs.*zⱼᵢ[2, :]*gramsToKilograms)
                 MWⱼ[3] ~ 0.0  
 
@@ -164,26 +166,26 @@
                 Pc ~ Pci
                 P_buble ~ Pbuble
                 P_dew ~ Pdew
-                Hⱼ[1] ~ Hⱼ[3]
+                Hⱼ[1] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :liquid) + sum(zₜ_user.*ΔH₀f)
                 Hⱼ[3] ~ enthalpy(model, P_user, T_user, zₜ_user, phase = :liquid) + sum(zₜ_user.*ΔH₀f)
                 Hⱼ[2] ~ 0.0
-                Sⱼ[1] ~ Sⱼ[3]
+                Sⱼ[1] ~ entropy(model, P_user, T_user, zₜ_user, phase = :liquid)
                 Sⱼ[3] ~ entropy(model, P_user, T_user, zₜ_user, phase = :liquid)
                 Sⱼ[2] ~ 0.0
+                scalarize(zⱼᵢ[1, :] .~ zₜ)...
                 scalarize(zⱼᵢ[3, :] .~ zₜ)...
                 scalarize(zⱼᵢ[2, :] .~ 0.0)...
-                scalarize(zⱼᵢ[1, :] .- zⱼᵢ[3, :] .~ 0.0)...
                 scalarize(zᵂⱼᵢ[2, :] .~ 0.0)... # Mass base 
                 scalarize(zᵂⱼᵢ[1, :] .- zᵂⱼᵢ[3, :] .~ 0.0)... # Mass base
                 scalarize(Fᵂⱼᵢ[3, :] .~ Fᵂⱼ[3].*zᵂⱼᵢ[3, :])... # Mass base
-                ρ[1] ~ ρ[3]
+                ρ[1] ~ molar_density(model, P_user, T_user, zₜ_user, phase = :liquid)
                 ρ[3] ~ molar_density(model, P_user, T_user, zₜ_user, phase = :liquid)
                 ρ[2] ~ 0.0
-                ρʷ[1] ~ ρʷ[3]
+                ρʷ[1] ~ mass_density(model, P_user, T_user, zₜ_user, phase = :liquid)
                 ρʷ[3] ~ mass_density(model, P_user, T_user, zₜ_user, phase = :liquid)
                 ρʷ[2] ~ 0.0
-                MWⱼ[1] ~ MWⱼ[3]
-                MWⱼ[3] ~ sum(MWs.*zⱼᵢ[3, :]*gramsToKilograms)
+                MWⱼ[1] ~ sum(scalarize(MWs.*zⱼᵢ[3, :])*gramsToKilograms)
+                MWⱼ[3] ~ sum(scalarize(MWs.*zⱼᵢ[3, :])*gramsToKilograms)
                 MWⱼ[2] ~ 0.0
 
             ]
@@ -232,16 +234,11 @@
     #phase 1 is total, 2 is vapor, 3 is liquid
     eqs = [eqs_conn..., global_mol_balance..., molar_to_mass..., component_balance..., pc...]
     
-    unfold_pars = []
-    for par in pars
-        unfold_pars = [unfold_pars...; par...]
-    end
-
     unfold_vars = []
     for var in vars
         unfold_vars = [unfold_vars...; var...]
     end
 
-    ODESystem([eqs...;], t, unfold_vars, unfold_pars; name, systems) 
+    ODESystem([eqs...;], t, unfold_vars, []; name, systems) 
 end
 

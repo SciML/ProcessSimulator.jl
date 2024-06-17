@@ -9,8 +9,4 @@ Base.@kwdef struct KineticReactionNetwork
     name::String
 end
 
-my_reaction = KineticReactionNetwork(;substances_user = ["a","b"], 
-Af_r = 2, Ef_r = 2, Coef_Cr = [1.0 1.0], Do_r = [1.0 1.0], name = "ReactionNetwork")
-
-my_reaction.Nc
 

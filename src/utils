@@ -10,8 +10,7 @@ Load component properties from a file.
 - `properties::Dict`: A dictionary containing the component properties.
 """
 function load_component_properties(component_name::String)
-    file_path = abspath(joinpath(@__DIR__, "OMChemSimDataBase/$(component_name).json"))
-    println(file_path)
+    file_path = abspath(joinpath(@__DIR__, "database/$(component_name).json"))
     if isfile(file_path)
         return JSON.parsefile(file_path)
     else
@@ -38,3 +37,20 @@ function read_reidcp(data, substances)
 
     return (a = Float64.(a), b = Float64.(b), c = Float64.(c), d = Float64.(d), e = Float64.(e))
 end
+
+
+struct my_model
+    Cp
+    ρ_coefs
+end
+
+function enthalpy_simple(m::my_model, P, T, N)
+    sum(m.Cp[i]*N[i]*(T - 298.15) for i in eachindex(N))
+end
+
+function molar_density_simple(m::my_model, P, T, N)
+        sum(N)/sum(N[i]/(m.ρ_coefs["a"][i] + m.ρ_coefs["b"][i]*T + m.ρ_coefs["c"][i]*T^2  + m.ρ_coefs["d"][i]*T^3) for i in eachindex(N))  
+end
+
+@register_symbolic enthalpy_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
+@register_symbolic molar_density_simple(m::my_model, P::Num, T::Num, N::Vector{Num})

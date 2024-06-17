@@ -1,31 +1,34 @@
 using ProcessSimulator
 using ModelingToolkit, DifferentialEquations, Clapeyron
+import ModelingToolkit: get_unknowns, get_observed, get_defaults, get_eqs
+using ModelingToolkit: t_nounits as t, D_nounits as D
+using JSON
 using NonlinearSolve
 using Test
-model = PCPSAFT(["propyleneglycol", "methyloxirane", "water", "methanol"], idealmodel = BasicIdeal)
-xᵢⱼ, nᵢⱼ, G = tp_flash(model, 40_000, 300.15, [1.0, 1.0, 1.0, 1.0], DETPFlash(; equilibrium = :vle))
-@time dew_pressure(model, 300.15, [1.0, 1.0, 1.0, 1.0])
 
-@named source = MaterialSource(; substances_user =  ["propyleneglycol", "methyloxirane", "water", "methanol"],
-model = model,
- P_user = 101325, T_user = 298.0,
-  Fₜ_user = 100.0, zₜ_user = [0.5, 0.5, 0.5, 0.5]/2.0
-  )
+substances = ["water", "methanol", "propyleneglycol","methyloxirane"]
+properties = Dict(subs => load_component_properties(subs) for subs in substances)
+idealmodel = ReidIdeal(substances; userlocations = read_reidcp(properties, substances))
+PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
 
-equations(source)
-for eq in equations(source)
-    println(eq)
-end
-sys = structural_simplify(source, simplify = true)
-variables = states(sys)
+@named source = MaterialSource(; substances_user =  substances,
+model = PCSAFT_model,
+P_user = 101325, T_user = 297.0,
+Fₜ_user = (36.3 + 453.6 + 45.4)*1e3/3600,
+zₜ_user = [0.8473, 1.0 - (0.0678 + 0.8473), 0.0, 0.0678])
+
+@named myDisplay = Display(; Nc = 4)
+
+connections = ODESystem([connect(source.Out, myDisplay.InPort)], t, [], [] ; name = :connection)
+
+system = compose(connections, [source, myDisplay])
+
+
+sys = structural_simplify(system)
+variables = get_unknowns(sys)
 u0 = [x => 0.5 for x in variables]
-prob = SteadyStateProblem(sys, u0, checkbounds=true)
+prob = SteadyStateProblem(sys, u0)
 sol = solve(prob, SSRootfind())
-sol[states(source)[1]] # Trouble calculating the other states after structural simplification - why?
-for ob in observed(sys)
-    println(ob)
-end
+sol[myDisplay.z₃] 
 
-model = PR(["methane", "propane"], idealmodel = ReidIdeal)
 
-enthalpy(model, 1e-10, 298.00, [1.0, 1.0])
