@@ -6,7 +6,8 @@
     ninports,  
     Ac, 
     height_out_port,
-    name
+    name,
+    guesses 
    )
     
 #Numerical variables
@@ -42,9 +43,9 @@ end
 vars = @variables begin
     M(t), [description = "Mass holdup in the tank (kg)"]
     N(t), [description = "Total molar holdup in the tank (kmol)"]
-    V(t), [description = "Volume holdup in the tank (m³)"]
+    V(t), [description = "Volume holdup in the tank (m³)", guess = guesses[:V]]
     (Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
-    (Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)"]
+    (Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)", guess = guesses[:Cᵢ]]
     ρ(t), [description = "Molar Density of the fluid in the tank (mol/m³)"]
     ρʷ(t), [description = "Mass Density of the fluid in the tank (kg/m³)"]
     MW(t), [description = "Molecular weight of fluid in the tank (kg/kmol)"]  
@@ -52,10 +53,14 @@ vars = @variables begin
     P_out(t), [description = "Pressure at the outlet stream level (Pa)"]
     H(t), [description = "Enthalpy holdup of the fluid in the tank (J)"] 
     #S(t), [description = "Entropy holdup of the fluid in the tank (J/K)"]
-    F_out(t), [description = "Outlet molar flow rate (mol/s)"] 
-    Fʷ_out(t), [description = "Outlet molar flow rate (mol/s)"]
+    F_out(t), [description = "Outlet molar flow rate (mol/s)", guess = guesses[:F_out]] 
+    Fʷ_out(t), [description = "Outlet molar flow rate (mol/s)", guess = guesses[:Fʷ_out]]
     Q_out(t), [description = "Outlet volumetric flow rate (m³/s)"] # DoF
     height(t), [description = "Liquid level in vessel measured from bottom of the tank (m)"]
+    P_atm(t), [description = "Tank pressure (Pa)"] # Equal to inlet pressures.
+    Q̇(t), [description = "Heat transfer rate (J/s)"] # Potential DoF
+    (r(t))[1:Nri], [description = "Rate of each reaction for each component (mol/s/m³)"]
+    (R(t))[1:Nc], [description = "Overall reaction rate (mol/s/m³)"]
 
     (Cᵢ_in(t))[1:Nc, 1:ninports], [description = "Inlet concentration of each component (mol/m³)"] # DoF through inlet stream
     (F_in(t))[1:ninports], [description = "Inlet molar flow rate (mol/s)"] # DoF through inlet stream
@@ -64,10 +69,7 @@ vars = @variables begin
     (h_in(t))[1:ninports], [description = "Inlet specific enthalpy (J/mol)"]
     (ρ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
     (ρʷ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
-    P_atm(t), [description = "Tank pressure (Pa)"] # Equal to inlet pressures.
-    Q̇(t), [description = "Heat transfer rate (J/s)"] # Potential DoF
-    (r(t))[1:Nri], [description = "Rate of each reaction for each component (mol/s/m³)"]
-    (R(t))[1:Nc], [description = "Overall reaction rate (mol/s/m³)"]
+
 end
 
     

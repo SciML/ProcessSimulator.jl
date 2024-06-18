@@ -52,5 +52,5 @@ function molar_density_simple(m::my_model, P, T, N)
         sum(N)/sum(N[i]/(m.ρ_coefs["a"][i] + m.ρ_coefs["b"][i]*T + m.ρ_coefs["c"][i]*T^2  + m.ρ_coefs["d"][i]*T^3) for i in eachindex(N))  
 end
 
-@register_symbolic enthalpy_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
-@register_symbolic molar_density_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
+#@register_symbolic enthalpy_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
+#@register_symbolic molar_density_simple(m::my_model, P::Num, T::Num, N::Vector{Num})

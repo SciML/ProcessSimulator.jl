@@ -2,8 +2,6 @@ using ProcessSimulator
 using ModelingToolkit, DifferentialEquations, Clapeyron
 import ModelingToolkit: get_unknowns, get_observed, get_defaults, get_eqs
 using ModelingToolkit: t_nounits as t, D_nounits as D
-using JSON
-using NonlinearSolve
 using Test
 
 
@@ -19,7 +17,7 @@ PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
 model = PCSAFT_model,
 P_user = 101325, T_user = 297.0,
 Fₜ_user = (36.3 + 453.6 + 45.4)*1e3/3600,
-zₜ_user = [0.8473, 1.0 - (0.0678 + 0.8473), 0.0, 0.0678])
+zₜ_user = [0.8473, 1.0 - (0.0678 + 0.8473), 0.0, 0.0678], guesses = Dict((:zᵂⱼᵢ) => ones(3, 4)*0.25))
 
 
 #----------------- CSTR object
@@ -46,13 +44,18 @@ mymodel = my_model(Cps, pho_coef)
     Reaction = Reaction,
     ninports = 1, 
     Ac = 1.93, #m²
-    height_out_port = 0.0 #m
+    height_out_port = 0.0, #m
+    guesses = Dict(:Cᵢ => [57252.65, 0.0, 0.0, 0.0], :V => 1.9, :F_out => (36.3 + 453.6 + 45.4)*1e3/3600, :Fʷ_out => (36.3 + 453.6 + 45.4)*18/3600)
     )
 
-cons = [connect(source.Out, R_101.InPorts1),
-       connect(R_101.Out, Display_CSTR.InPort)]
+#cons = [connect(source.Out, R_101.InPorts1),
+#       connect(R_101.Out, Display_CSTR.InPort)]
 
-flowsheet = compose(ODESystem(cons, t; name = :mycon), [R_101, source, Display_CSTR])  
+@which connect(source.Out, R_101.InPorts1)
+
+cons = [connect(source.Out, R_101.InPorts1)]
+
+flowsheet = ODESystem(cons, t; name = :mycon, systems = [R_101, source])   
 sistema = structural_simplify(flowsheet)
 equations(sistema)
 unknowns(sistema)
@@ -62,9 +65,14 @@ u0 = [sistema.R_101.Nᵢ[1] => 1.9*57252.65, sistema.R_101.Nᵢ[2] => 0.0,
  sistema.R_101.Nᵢ[3] => 0.0, sistema.R_101.Nᵢ[4] => 0.0,
  sistema.R_101.T => 297.0]
 
-prob = ODEProblem(sistema, u0, (0.0, 1.0))
+prob = ODAEProblem(sistema, u0, (0.0, 1.0))
+sol = solve(prob, FBDF(autodiff = false), abstol =  1e-6, reltol = 1e-6)
+sol[sistema.R_101.InPorts1.P]
+using Plots
+plot(sol[sistema.source.Out.z₁])
 
 
+solve(prob, Rodas)
 #= using ProcessSimulator
 using Test
 

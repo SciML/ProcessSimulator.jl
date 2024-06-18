@@ -3,7 +3,7 @@
     model,
     properties = Dict(subs => load_component_properties(subs) for subs in substances_user),
     P_user, T_user,
-    Fₜ_user, zₜ_user, name)
+    Fₜ_user, zₜ_user, name, guesses)
     #phase 1 is total, 2 is vapor, 3 is liquid
 
     @assert sum(zₜ_user) ≈ 1.0 "Sum of fractions is not close to one"
@@ -29,7 +29,7 @@
         (Fⱼ(t))[1:3], [description = "Molar flow rate in each phase j (mol/s)"]
         (Fᵂⱼ(t))[1:3], [description = "Mass flow rate in each phase j (kg/s)"]
         (zⱼᵢ(t))[1:3, 1:Nc], [description = "Component molar fraction in each phase j component i (-)"] 
-        (zᵂⱼᵢ(t))[1:3, 1:Nc], [description = "Component mass fraction in each phase j component i (-)"] 
+        (zᵂⱼᵢ(t))[1:3, 1:Nc], [description = "Component mass fraction in each phase j component i (-)", guess = guesses[:zᵂⱼᵢ]] 
         (Fⱼᵢ(t))[1:3, 1:Nc], [description = "Molar flow rate in each phase j and component i (mol/s)"] 
         (Fᵂⱼᵢ(t))[1:3, 1:Nc], [description = "Mass flow rate in each phase j and component i (mol/s)"]
         (Hⱼ(t))[1:3], [description = "Enthalpy in each phase j at T and P (J/mol)"] 
