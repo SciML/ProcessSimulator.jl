@@ -19,7 +19,7 @@ include("Reactors/SimplifiedCSTR.jl")
 export SimpleCSTR
 
 include("Sources/Sourceutils.jl")
-export Display, matcon
+export Display
 
 
 end

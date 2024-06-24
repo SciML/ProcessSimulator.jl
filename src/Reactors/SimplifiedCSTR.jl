@@ -9,8 +9,11 @@
     name,
     guesses 
    )
-    
-#Numerical variables
+  
+
+
+#register_symbolic enthalpy_simple(m::my_model, P::AbstractFloat, T::AbstractFloat, N::AbstractVector)
+#@register_symbolic molar_density_simple(m::my_model, P::AbstractFloat, T::AbstractFloat, N::AbstractVector)
     
 #Constants
 #GravitationalConst = 9.81 # m²/s
@@ -91,33 +94,33 @@ volumetricflow_eqs = [Q_in[j] ~ F_in[j] / ρ_in[j] for j in 1:ninports]
 
 
 #Outlet connector equations:
-out_conn = [Out.P ~ - P_out
-            Out.T ~ - T
-            Out.F ~ - F_out
-            Out.Fʷ ~ - Fʷ_out
-            Out.H ~ - H/N
-            Out.S ~  0.0
-            Out.ρʷ ~ - ρʷ
-            Out.ρ ~ - ρ
-            scalarize(Out.z₁ .~ - Nᵢ/N)...
-            Out.MW[1] ~ - MW
+out_conn = [Out.P ~ P_out
+            Out.T ~ T
+            Out.F ~ F_out
+            Out.Fʷ ~ Fʷ_out
+            Out.H ~ H/N
+            Out.S ~ 0.0
+            Out.ρʷ ~ ρʷ
+            Out.ρ ~ ρ
+            scalarize(Out.z₁ .~ Nᵢ/N)...
+            Out.MW[1] ~ MW
 ]
 
 if phase == :liquid
 out_conn_phases = [
                 scalarize(Out.z₂ .~ 0.0)...
-                scalarize(Out.z₃ .~ - Nᵢ/N)...
+                scalarize(Out.z₃ .~ Nᵢ/N)...
                 Out.MW[2] ~  0.0
-                Out.MW[3] ~ -MW
-                Out.α_g ~  0.0]
+                Out.MW[3] ~ MW
+                Out.α_g ~ 0.0]
 
 elseif phase == :vapor
     out_conn_phases = [
-    scalarize(Out.z₂ .~ - Nᵢ/N)...
-    scalarize(Out.z₃ .~  0.0)...
-    Out.MW[2] ~ -MW
+    scalarize(Out.z₂ .~ Nᵢ/N)...
+    scalarize(Out.z₃ .~ 0.0)...
+    Out.MW[2] ~ MW
     Out.MW[3] ~ 0.0
-    Out.α_g ~ -1.0]
+    Out.α_g ~ 1.0]
 end
 
 
@@ -130,14 +133,14 @@ mass_volume_eq = [ρʷ*V ~ M, ρ*V ~ N] #Modified to calculate volume from N
 mol_holdup = [N ~ sum(scalarize(Nᵢ))]
 mol_to_concentration = [scalarize(Nᵢ .~ Cᵢ*V)...]
 height_to_volume = [height*A ~ V]
-volumetricflow_to_molarflow = [Q_out ~ F_out/ρ Q_out ~ sum(scalarize(Q_in))] # Modified
+volumetricflow_to_molarflow = [Q_out ~ F_out/ρ, Q_out ~ sum(scalarize(Q_in))] # Modified
 volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
   
 #Thermodynamic properties (outlet)
 pressure_out = [phase == :liquid ? P_out ~ P_atm : P_out ~ P_atm] #Estimation considering static pressure (May be off as tank is agitated and not static)
-density_eqs = [ρ ~ molar_density_simple(model, P_out, T, Nᵢ)] 
+density_eqs = [ρ ~ molar_density(model, P_out, T, Nᵢ)] 
 mass_density = [ρʷ ~ ρ*MW]
-globalEnthalpy_eq = [H ~ enthalpy_simple(model, P_out, T, Nᵢ) + sum(scalarize(ΔH₀f.*Nᵢ))]
+globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, Nᵢ) + sum(scalarize(ΔH₀f.*Nᵢ))]
 molar_mass = [MW ~ sum(scalarize(MWs.*Nᵢ))/N*gramsToKilograms]
 
 

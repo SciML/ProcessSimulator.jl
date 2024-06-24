@@ -51,19 +51,19 @@
         Fₜ ~ Fₜ_user
 
         #Out stuff
-        Out.P ~ - P 
-        Out.T ~ - T  
-        Out.F ~ - Fₜ # F is negative as it is leaving the pbject
-        Out.Fʷ ~ - Fᵂⱼ[1]
-        Out.H ~ - Hⱼ[1] 
-        Out.S ~ - Sⱼ[1] 
-        scalarize(Out.z₁ .+ zⱼᵢ[1, :] .~ 0.0)...
-        scalarize(Out.z₂ .+ zⱼᵢ[2, :] .~ 0.0)...
-        scalarize(Out.z₃ .+ zⱼᵢ[3, :] .~ 0.0)...
-        Out.α_g ~ - α_g 
-        Out.ρ ~ - ρ[1]
-        Out.ρʷ ~ - ρʷ[1] 
-        scalarize(Out.MW .~ - MWⱼ)...
+        Out.P ~ P 
+        Out.T ~ T  
+        Out.F ~ Fₜ # F is negative as it is leaving the pbject
+        Out.Fʷ ~ Fᵂⱼ[1]
+        Out.H ~ Hⱼ[1] 
+        Out.S ~ Sⱼ[1] 
+        scalarize(Out.z₁ .~ zⱼᵢ[1, :])...
+        scalarize(Out.z₂ .~ zⱼᵢ[2, :])...
+        scalarize(Out.z₃ .~ zⱼᵢ[3, :])...
+        Out.α_g ~ α_g 
+        Out.ρ ~ ρ[1]
+        Out.ρʷ ~ ρʷ[1] 
+        scalarize(Out.MW .~ MWⱼ)...
     ]
 
     #Global Mass and Molar balances
