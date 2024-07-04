@@ -39,20 +39,39 @@ function read_reidcp(data, substances)
 end
 
 
-struct my_model
+#= struct my_model
     Cp
     ρ_coefs
     h_0
 end
 
-function enthalpy(m::my_model, P, T, N)
+function enthalpy_simple(m::my_model, P::Real, T::Real, N::AbstractVectorOfArray{Real})
     sum(m.Cp[i]*N[i]*(T - 298.15) for i in eachindex(N)) + sum(N[i]*m.h_0[i] for i in eachindex(N))
 end
 
-function molar_density(m::my_model, P, T, N)
+function molar_density_simple(m::my_model, P::Real, T::Real, N::AbstractVectorOfArray{Real})
         sum(N)/sum(N[i]/(m.ρ_coefs["a"][i] + m.ρ_coefs["b"][i]*T + m.ρ_coefs["c"][i]*T^2  + m.ρ_coefs["d"][i]*T^3) for i in eachindex(N))  
 end
+ =#
 
-#@register_symbolic enthalpy_simple(m::my_model, P::AbstractFloat, T::AbstractFloat, N::AbstractVector)
-#@register_symbolic molar_density_simple(m::my_model, P::AbstractFloat, T::AbstractFloat, N::AbstractVector)
 
+rho_surrogate = load_object(abspath(joinpath(@__DIR__, "database/surrogates/rho_surrogate.jld")))
+h_surrogate = load_object(abspath(joinpath(@__DIR__, "database/surrogates/H_surrogate.jld")))
+
+struct surrogates
+    rho::RadialBasis
+    h::RadialBasis
+end
+
+surro = surrogates(rho_surrogate, h_surrogate)
+
+function predict_ρ(surrogate::surrogates, T, x::AbstractArray)
+    surrogate.rho([T, x...])
+end
+
+function predict_h(surrogate::surrogates, T, x::AbstractArray)
+    surrogate.h([T, x...])
+end
+
+@register_symbolic predict_ρ(surrogate::surrogates, T, x::AbstractArray)
+@register_symbolic predict_h(surrogate::surrogates, T, x::AbstractArray)

@@ -1,156 +1,190 @@
-@component function CSTR(; substances_user = ["methanol", "propylene oxide", "water"], 
+@component function CSTR(; substances_user, 
     Nc = length(substances_user), 
-    phase = :liquid, 
-    model = PR(substances_user),
-    properties = Dict(subs => load_component_properties(subs) for subs in substances_user),
-    Reaction = KineticReactionNetwork(Af_r = [1.0], Ef_r = [1.0], Do_r = [1.0 1.0], name = :DefaultReaction),
-    ninports = 1,  
-    InPorts = [matcon(; Nc = Nc, name = Symbol("InPorts$i")) for i in 1:ninports],
-    Ac = 1.0, 
-    height_out_port = 0.0
+    phase, 
+    model,
+    Reaction,
+    ninports,  
+    Ac, 
+    height_out_port,
+    name,
+    guesses 
    )
-    
-    #Numerical variables
-    
-    #Constants
-    GravitationalConst = 9.81 # m²/s
-    gramsToKilograms = 10^(-3)
-    Rᵍ = 8.314 # J/(mol K)
-    
-    #Properties of individual substances
-    MWs = [properties[subs]["MW"] for subs in substances_user]
-    
-    #Connection and reaction constants
-    Nri = defaults(Reaction)[@nonamespace Reaction.Nr]
+  
+#Constants
+#GravitationalConst = 9.81 # m²/s
+gramsToKilograms = 10^(-3)
+Rᵍ = 8.314 # J/(mol K)
+Nri = Reaction.Nri
 
-    pars = @parameters begin 
-        ## How to inherent parameters from Reaction?
-        height_out = height_out_port, [description = "Height of the outlet stream port with reference from the bottom of the tank (m)"]
-        N_InPorts = ninports
-        Nr = Nri, [description = "Number of reactions"]
-        Af_r[1:Nri] = defaults(Reaction)[@nonamespace Reaction.Af_r], [description = "Arrhenius constant of each reaction at given temperature ()"]
-        Coef_Cr[1:Nri, 1:Nc] = defaults(Reaction)[@nonamespace Reaction.Coef_Cr], [description = "Stoichiometric coefficients of each component in each reaction (-)"]
-        Do_r[1:Nri, 1:Nc] = defaults(Reaction)[@nonamespace Reaction.Do_r], [description = "Forward order of the components (-)"]
-        Ef_r[1:Nri] = defaults(Reaction)[@nonamespace Reaction.Ef_r], [description = "Activation energy of each reaction at given temperature ()"]
-        N = Nc, [description = "Number of components"]
-        A = Ac, [description = "Cross sectional area of the tank (m²)"]
-    end   
-    
-    
-    OutPorts = @named begin
-        Out = matcon(; Nc = Nc) 
-    end   
+#Properties of individual substances
+properties = Dict(subs => load_component_properties(subs) for subs in substances_user)
+MWs = [properties[subs]["MW"] for subs in substances_user]
+ΔH₀f = [properties[subs]["IGHF"]/10^3 for subs in substances_user] # (IG formation enthalpy) J/mol
 
-    vars = @variables begin
 
-    T(t), [description = "Temperature of vessel contents (K)"]
+pars = @parameters begin 
+Af_r[1:Nri] = Reaction.Af_r, [description = "Arrhenius constant of each reaction at given temperature ()"]
+Coef_Cr[1:Nri, 1:Nc] = Reaction.Coef_Cr, [description = "Stoichiometric coefficients of each component in each reaction (-)"]
+Do_r[1:Nri, 1:Nc] = Reaction.Do_r, [description = "Forward order of the components (-) "]
+Ef_r[1:Nri] = Reaction.Ef_r, [description = "Activation energy of each reaction at given temperature ()"]
+A = Ac, [description = "Cross sectional area of the tank (m²)"]
+end
+
+#Ports creation
+ 
+InPorts = [matcon(; Nc = Nc, name = Symbol("InPorts$i")) for i in 1:ninports]
+
+OutPorts = @named begin
+    Out = matcon(; Nc = Nc) 
+end   
+
+vars = @variables begin
     M(t), [description = "Mass holdup in the tank (kg)"]
     N(t), [description = "Total molar holdup in the tank (kmol)"]
-    V(t), [description = "Volume holdup in the tank (m³)"]
-    (Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
-    (Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)"]
-    (ρ(t)), [description = "Molar Density of the fluid in the tank (mol/m³)"]
-    (ρʷ(t)), [description = "Mass Density of the fluid in the tank (kg/m³)"]
-    #h_out(t), [description = "Outlet specific enthalpy (J/mol)"]
-    MW(t), [description = "Molecular weight of fluid in the tank (kg/kmol)"]    
+    V(t), [description = "Volume holdup in the tank (m³)", guess = guesses[:V]]
+    #(Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
+    N1(t), [description = "Molar holdup of component 1 in the tank (mol)"]
+    N2(t), [description = "Molar holdup of component 2 in the tank (mol)"]
+    N3(t), [description = "Molar holdup of component 3 in the tank (mol)"]
+    N4(t), [description = "Molar holdup of component 4 in the tank (mol)"]
+    #(Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)", guess = guesses[:Cᵢ]]
+    C1(t), [description = "Concentration of component 1 in the tank (mol/m³)", guess = guesses[:C1]]
+    C2(t), [description = "Concentration of component 2 in the tank (mol/m³)", guess = guesses[:C2]]
+    C3(t), [description = "Concentration of component 3 in the tank (mol/m³)", guess = guesses[:C3]]
+    C4(t), [description = "Concentration of component 4 in the tank (mol/m³)", guess = guesses[:C4]]
+    ρ(t), [description = "Molar Density of the fluid in the tank (mol/m³)"]
+    ρʷ(t), [description = "Mass Density of the fluid in the tank (kg/m³)"]
+    MW(t), [description = "Molecular weight of fluid in the tank (kg/kmol)"]  
+    T(t), [description = "Temperature of vessel contents (K)"]  
     P_out(t), [description = "Pressure at the outlet stream level (Pa)"]
-    H(t), [description = "Enthalpy holdup of the fluid in the tank (J)"] 
-    S(t), [description = "Entropy holdup of the fluid in the tank (J/K)"]
-    F_out(t), [description = "Outlet molar flow rate (mol/s)"] 
+    H(t), [description = "Enthalpy holdup of the fluid in the tank (J)", guess = guesses[:H]] 
+    #S(t), [description = "Entropy holdup of the fluid in the tank (J/K)"]
+    F_out(t), [description = "Outlet molar flow rate (mol/s)", guess = guesses[:F_out]] 
     Fʷ_out(t), [description = "Outlet molar flow rate (mol/s)"]
-    Q_out(t), [description = "Outlet volumetric flow rate (m³/s)"] # DoF
+    Q_out(t), [description = "Outlet volumetric flow rate (m³/s)", guess = guesses[:Q_out]] # DoF
     height(t), [description = "Liquid level in vessel measured from bottom of the tank (m)"]
-
-    (Cᵢ_in(t))[1:Nc, 1:Ni_InPorts], [description = "Inlet concentration of each component (mol/m³)"] # DoF through inlet stream
-    (F_in(t))[1:Ni_InPorts], [description = "Inlet molar flow rate (mol/s)"] # DoF through inlet stream
-    (Q_in(t))[1:Ni_InPorts], [description = "Inlet volumetric flow rate(s) (m³/s)"]
-    (T_in(t))[1:Ni_InPorts], [description = "Inlet temperature (K)"] # DoF through inlet stream
-    (h_in(t))[1:Ni_InPorts], [description = "Inlet specific enthalpy (J/mol)"]
-    (ρ_in(t))[1:Ni_InPorts], [description = "Inlet density (mol/m³)"]
-    (ρʷ_in(t))[1:Ni_InPorts], [description = "Inlet density (mol/m³)"]
-    P_atm(t), [description = "Tank pressure (Pa)"] # Pontetial DoF and equal to inlet pressures.
+    P_atm(t), [description = "Tank pressure (Pa)"] # Equal to inlet pressures.
     Q̇(t), [description = "Heat transfer rate (J/s)"] # Potential DoF
-    (r(t))[1:Nri, 1:Nc], [description = "Rate of each reaction for each component (mol/s/m³)"]
+    (r(t))[1:Nri], [description = "Rate of each reaction for each component (mol/s/m³)"]
     (R(t))[1:Nc], [description = "Overall reaction rate (mol/s/m³)"]
-    end
+
+    (Cᵢ_in(t))[1:Nc, 1:ninports], [description = "Inlet concentration of each component (mol/m³)"] # DoF through inlet stream
+    (F_in(t))[1:ninports], [description = "Inlet molar flow rate (mol/s)"] # DoF through inlet stream
+    (Q_in(t))[1:ninports], [description = "Inlet volumetric flow rate(s) (m³/s)"]
+    (T_in(t))[1:ninports], [description = "Inlet temperature (K)"] # DoF through inlet stream
+    (h_in(t))[1:ninports], [description = "Inlet specific enthalpy (J/mol)"]
+    (ρ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
+    (ρʷ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
+
+end
 
     
 
-    #Reaction equations
-    reaction_rate = [r[i, j] ~ Af_r[i]*exp(-Ef_r[i]/(Rᵍ*T))*(Cᵢ[:].^(Do_r[j, :])) for i in 1:Nri for j in 1:Nc] # If there's an inert, the order is just zero, but it has to be written
-    overall_reaction_rate = [R[i] ~ sum(r[:, i].*Coef_Cr[:, i]) for i in 1:Nc]  # If there's an inert, the coefficient is just zero, but it has to be written
+#Reaction equations
+reaction_rate = [r[i] ~ Af_r[i]*exp(-Ef_r[i]/(Rᵍ*T))*prod(scalarize(([C1, C2, C3, C4].^Do_r[i, :]))) for i in 1:Nri] # If there's an inert, the order is just zero, but it has to be written
+overall_reaction_rate = [R[i] ~ sum(scalarize(r[:].*Coef_Cr[:, i])) for i in 1:Nc]  # If there's an inert, the coefficient is just zero, but it has to be written
 
    
-    #Inlet connector variables's equations
-    atm_pressure = [P_atm ~ InPorts[1].P]
-    mass_density_eqs = [ρʷ_in[j] ~ InPorts[j].ρʷ for j in 1:Ni_InPorts]
-    molar_density_eqs = [ρ_in[j] ~ InPorts[j].ρ for j in 1:Ni_InPorts]
-    inletenthalpy = [h_in[j] ~ InPorts[j].H for j in 1:Ni_InPorts]
-    inletconcentrations = [Cᵢ_in[i, j] ~ InPorts[j].z₁[i]*ρ_in[j] for j in 1:Ni_InPorts for i in 1:Nc]
-    inlettemperature_eqs = [T_in[j] ~ InPorts[j].T for j in 1:Ni_InPorts]
-    inletmolarflow_eqs = [F_in[j] ~ InPorts[j].F for j in 1:Ni_InPorts]
-    volumetricflow_eqs = [Q_in[j] ~ F_in[j] / ρ_in[j] for j in 1:Ni_InPorts]
-
-    eqs = [reaction_rate; overall_reaction_rate; atm_pressure; mass_density_eqs; molar_density_eqs; inletenthalpy; inletconcentrations; inlettemperature_eqs; inletmolarflow_eqs; volumetricflow_eqs]
-
-    #Outlet connector equations:
-    out_conn = [Out.P ~ P_out
-                Out.T ~ T
-                Out.F ~ F_out
-                Out.Fʷ ~ Fʷ_out
-                Out.H ~ H/N
-                Out.S ~ S/N
-                Out.ρʷ ~ ρʷ
-                Out.ρ ~ ρ
-                scalarize(Out.z₁ .~ Nᵢ/N)...
-                Out.MW[1] ~ MW
-    ]
-
-    out_conn_phases = [if phase == :liquid
-                            scalarize(Out.z₂ .~ 0.0)...
-                            scalarize(Out.z₃ .~ z₁)...
-                            Out.MW[2] ~ 0.0
-                            Out.MW[3] ~ Out.MW[1]
-                            Out.α_g ~ 0.0
-                    elseif phase == :vapor
-                            scalarize(Out.z₂ .~ z₁)...
-                            scalarize(Out.z₃ .~ 0.0)...
-                            Out.MW[2] ~ Out.MW[1]
-                            Out.MW[3] ~ 0.0
-                            Out.α_g ~ 1.0
-                    end
-            ]
+#Inlet connector variables's equations
+atm_pressure = [P_atm ~ InPorts[1].P]
+mass_density_eqs = [ρʷ_in[j] ~ InPorts[j].ρʷ for j in 1:ninports]
+molar_density_eqs = [ρ_in[j] ~ InPorts[j].ρ for j in 1:ninports]
+inletenthalpy = [h_in[j] ~ InPorts[j].H for j in 1:ninports]
+inletconcentrations = [Cᵢ_in[i, j] ~ InPorts[j].z₃[i]*ρ_in[j] for j in 1:ninports for i in 1:Nc]
+inlettemperature_eqs = [T_in[j] ~ InPorts[j].T for j in 1:ninports]
+inletmolarflow_eqs = [F_in[j] ~ InPorts[j].F for j in 1:ninports]
+volumetricflow_eqs = [Q_in[j] ~ F_in[j] / ρ_in[j] for j in 1:ninports]
 
 
+#Outlet connector equations:
+out_conn = [Out.P ~ P_out
+            Out.T ~ T
+            Out.F ~ F_out
+            Out.Fʷ ~ Fʷ_out
+            Out.H ~ H/N
+            Out.S ~ 0.0
+            Out.ρʷ ~ ρʷ
+            Out.ρ ~ ρ
+            scalarize(Out.z₁ .~ [N1, N2, N3, N4]/N)...
+            Out.MW[1] ~ MW
+]
 
-    #balances
-    mass_balance = [D(M) ~ sum(Q_in.*ρʷ_in) - Q_out*ρʷ]
-    component_balance = [d(Nᵢ[i]) ~ sum(Q_in.[:]*Cᵢ_in[i, :]) - Q_out*Cᵢ[i] + R[i]*V for i in 1:Nc]
-    energy_balance = [D(H(t)) ~ Q_in*ρ_in*h_in - Q_out*h_out*ρ + Q̇]
-    mass_volume_eq = [ρʷ*V ~ M]
-    mol_holdup = [N ~ sum(Nᵢ)]
-    mol_to_concentration = [Nᵢ .~ Cᵢ*V]
-    height_to_volume = [phase = :vapor ? height ~ 0.0 : height*A ~ V]
-    volumetricflow_to_molarflow = [Q_out ~ F_out/ρ]
-    volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
-    
+if phase == :liquid
+out_conn_phases = [
+                scalarize(Out.z₂ .~ 0.0)...
+                scalarize(Out.z₃ .~ [N1, N2, N3, N4]/N)...
+                Out.MW[2] ~  0.0
+                Out.MW[3] ~ MW
+                Out.α_g ~ 0.0
+                ]
 
-    #Thermodynamic properties (outlet)
-    pressure_out = [phase == :liquid ? P_out ~ P_atm + ρʷ*GravitationalConst*(height - height_out) : P_out ~ P_atm] #Estimation considering static pressure for liquids (May be off as tank is stirred and not static)
-    density_eqs = [ρ ~ molar_density(model, P_out, T, Nᵢ; phase = phase), ρʷ ~ mass_density(model, P, T, Nᵢ; phase = phase)]
-    globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, Nᵢ; phase = phase)]
-    molar_mass = [MW ~ sum(MWs[i]*Nᵢ[i]/N)*gramsToKilograms]
-    entropy_eq = [S ~ entropy(model, P_atm, T, Nᵢ; phase = phase)]
+elseif phase == :vapor
+    out_conn_phases = [
+    scalarize(Out.z₂ .~ [N1, N2, N3, N4]/N)...
+    scalarize(Out.z₃ .~ 0.0)...
+    Out.MW[2] ~ MW
+    Out.MW[3] ~ 0.0
+    Out.α_g ~ 1.0]
+end
 
-    eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;
-    out_conn_phases...; mass_balance...; component_balance...; energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
-    pressure_out...; density_eqs...; globalEnthalpy_eq...; molar_mass...; entropy_eq...]
+
+#balances
+#mass_balance = [D(M) ~ sum(scalarize(Q_in.*ρʷ_in)) - Q_out*ρʷ]
+component_balance = [D(N1) ~ sum(scalarize(Q_in[:].*Cᵢ_in[1, :])) - Q_out*C1 + R[1]*V,
+                     D(N2) ~ sum(scalarize(Q_in[:].*Cᵢ_in[2, :])) - Q_out*C2 + R[2]*V,
+                     D(N3) ~ sum(scalarize(Q_in[:].*Cᵢ_in[3, :])) - Q_out*C3 + R[3]*V,
+                     D(N4) ~ sum(scalarize(Q_in[:].*Cᵢ_in[4, :])) - Q_out*C4 + R[4]*V] #Neglectable loss to vapor phase head space
+
+energy_balance = [D(H) ~ sum(scalarize(Q_in.*ρ_in.*h_in)) - Q_out*ρ*H/N + Q̇]
+jacket_energy_balance = [Q̇ ~ -2.27*4184.0*(T - 288.7)*(1.0 - exp(-8440.26/(2.27*4184)))] 
+mass_volume_eq = [ρʷ*V ~ M, ρ*V ~ N] 
+mol_holdup = [N ~ N1 + N2 + N3 + N4]
+mol_to_concentration = [scalarize([N1, N2, N3, N4] .~ [C1, C2, C3, C4]*V)...]
+height_to_volume = [height*A ~ V]
+volumetricflow_to_molarflow = [Q_out*ρ ~ F_out] # Modified
+volumetricflow_to_massflow = [Q_out*ρʷ ~ Fʷ_out, Fʷ_out ~ sum(scalarize(Q_in.*ρʷ_in))] # Flow driven simulation (perfect flow control)
+  
+#Thermodynamic properties (outlet)
+pressure_out = [phase == :liquid ? P_out ~ P_atm : P_out ~ P_atm] 
+density_eqs = [ρ ~ molar_density(model, P_out, T, [N1, N2, N3, N4]; phase = phase)] 
+mass_density = [ρʷ ~ ρ*MW]
+globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, [N1, N2, N3, N4]; phase = phase) + sum(scalarize(ΔH₀f.*[N1, N2, N3, N4]))]
+molar_mass = [MW ~ sum(scalarize(MWs.*[N1, N2, N3, N4]))/N*gramsToKilograms]
+
+
+eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;
+out_conn_phases...; component_balance...; energy_balance...; jacket_energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
+pressure_out...; density_eqs...; mass_density...; globalEnthalpy_eq...; molar_mass...]
+
+
+ODESystem([eqs...;], t, collect(Iterators.flatten(vars)), collect(Iterators.flatten(pars)); name, systems = [InPorts...; OutPorts])
 
 end
 
 #= 
-using ModelingToolkit, JSON, DifferentialEquations
+
+
+
+struct my_model
+    Cp
+    ρ_coefs
+end
+
+function enthalpy_simple(m::my_model, P, T, N)
+    sum(m.Cp[i]*N[i]*(T - 298.15) for i in eachindex(N))
+end
+
+function molar_density_simple(m::my_model, P, T, N)
+        sum(N)/sum(N[i]/(m.ρ_coefs["a"][i] + m.ρ_coefs["b"][i]*T + m.ρ_coefs["c"][i]*T^2  + m.ρ_coefs["d"][i]*T^3) for i in eachindex(N))  
+end
+
+@register_symbolic enthalpy_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
+@register_symbolic molar_density_simple(m::my_model, P::Num, T::Num, N::Vector{Num}) =#
+
+
+#= using ModelingToolkit, JSON, DifferentialEquations
 using ModelingToolkit: t_nounits as t, D_nounits as D
+using Symbolics
 import ModelingToolkit: scalarize, equations, get_unknowns, defaults
 using Clapeyron, GCIdentifier
 using NonlinearSolve
@@ -159,36 +193,39 @@ using JSON
 D = Differential(t)
 include("C:/Users/Vinic/OneDrive/Pos-Doc/Flowsheeting/ProcessModeling/ProcessSimulator.jl/src/utils")
 include("C:/Users/Vinic/OneDrive/Pos-Doc/Flowsheeting/ProcessModeling/ProcessSimulator.jl/src/Sources/Sourceutils.jl")
+include("C:/Users/Vinic/OneDrive/Pos-Doc/Flowsheeting/ProcessModeling/ProcessSimulator.jl/src/Reactors/ReactionManager/KineticReaction.jl")
 substances_user = ["water", "methanol", "propyleneglycol","methyloxirane"]
 Nc = size(substances_user, 1)
-#substances_user = ["water"]
 properties = Dict(subs => load_component_properties(subs) for subs in substances_user)
 # Function to extract parameters for ReidIdeal model
-read_reidcp(properties, substances_user)
+Cps = [69.21, 80.66, 192.50, 118.1] # At 298.00 K
+pho_coef = Dict("a" => [78821.04345816873, 38133.33588802956, 18453.26055238924, 25211.86290505424], 
+"b" => [-114.80261704286386, -85.22435577664774, -26.084451261000222, -73.31971618413455],
+"c" => [0.208885275623327, 0.21416405813277503, 0.046784549601356355, 0.18909331028746998],
+"d" => [-0.00022293440498512672, -0.0002675908503439664, -4.722426797584051e-5, -0.00022514899466957527])
 
-
-cp_params = (a = [36.54206320678348, 39.19437678197436, 25.7415, 34.91747774761048], b = [-0.03480434051958945, -0.05808483585041852, 0.2355, -0.014935581577635826], c = [0.000116818199785053, 0.0003501220208504329, 0.0001578, 0.000756101594841365], d = [-1.3003819534791665e-7, -3.6941157412454843e-7, -4.0939e-7, -1.0894144551347726e-6], e = [5.2547403746728466e-11, 1.276270011886522e-10, 2.1166e-10, 4.896983427747592e-10])
-idealmodel = ReidIdeal(["water", "methanol", "propyleneglycol","methyloxirane"]; userlocations = cp_params)
-pcpsaft = PCPSAFT(["water", "methanol", "propyleneglycol","methyloxirane"], idealmodel = idealmodel)
 phase = :liquid
-model = pcpsaft
-ΔT = 10.
-Ts = Base._linspace(298.00, 370.0, 20) |> collect
-println(Ts)
-z = [1.0, 1.0, 1.0, 1.0]
-isobaric_heat_capacity(pcpsaft, 101325., 298.00, z, phase = :liquid)
-bubble_temperature(pcpsaft, 5*101325., z)
-molar_density(pcpsaft, 5*101325, 350.15, z, phase = :liquid)
-rhos = [molar_density(pcpsaft, 5*101325, T, z, phase = :liquid) for T in Ts]
-enthalpy(pcpsaft, eps(1.), 298.00, z)
 
-isobaric_heat_capacity(IAPWS95(), 101325, 298.0, 1.)
+struct my_model
+    Cp
+    ρ_coefs
+end
 
-cp_w = (a = [36.54206320678348], b = [-0.03480434051958945], c = [0.000116818199785053], d = [-1.3003819534791665e-7], e = [5.2547403746728466e-11])
-ideal_water = ReidIdeal(["water"]; userlocations = cp_w)
-pcpwater = PCPSAFT(["water"], idealmodel = ideal_water)
-isobaric_heat_capacity(pcpwater, 101325, 298.00, 1., phase = :liquid)
-enthalpy(pcpwater, 101325, 298.00, 1., phase = :liquid)
+function enthalpy_simple(m::my_model, P, T, N)
+    sum(m.Cp[i]*N[i]*(T - 298.15) for i in eachindex(N))
+end
+
+function molar_density_simple(m::my_model, P, T, N)
+        sum(N)/sum(N[i]/(m.ρ_coefs["a"][i] + m.ρ_coefs["b"][i]*T + m.ρ_coefs["c"][i]*T^2  + m.ρ_coefs["d"][i]*T^3) for i in eachindex(N))  
+end
+
+
+mymodel = my_model(Cps, pho_coef)
+enthalpy_simple(mymodel, 101325, 298.15, [1.0, 1.0, 1.0, 1.0])
+molar_density_simple(mymodel, 101325, 350.15, [1.0, 1.0, 1.0, 1.0])
+
+@register_symbolic enthalpy_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
+@register_symbolic molar_density_simple(m::my_model, P::Num, T::Num, N::Vector{Num})
 
 
 Reaction = KineticReactionNetwork(;substances_user = substances_user, 
@@ -198,7 +235,7 @@ Do_r = [1.0 0.0 0.0 1.0], name = "Propyleneglycol synthesis")
 ninports = 1
 InPorts = [matcon(; Nc = Nc, name = Symbol("InPorts$i")) for i in 1:ninports]
 
-Ac = 1.0
+Ac = 26.51 # m²
 height_out_port = 0.0
 Nri =  Reaction.Nri
 
@@ -224,14 +261,12 @@ N = Nc, [description = "Number of components"]
 A = Ac, [description = "Cross sectional area of the tank (m²)"]
 end
 
-@variables v
     
 OutPorts = @named begin
     Out = matcon(; Nc = Nc) 
 end   
 
 vars = @variables begin
-
     M(t), [description = "Mass holdup in the tank (kg)"]
     N(t), [description = "Total molar holdup in the tank (kmol)"]
     V(t), [description = "Volume holdup in the tank (m³)"]
@@ -244,19 +279,19 @@ vars = @variables begin
     T(t), [description = "Temperature of vessel contents (K)"]  
     P_out(t), [description = "Pressure at the outlet stream level (Pa)"]
     H(t), [description = "Enthalpy holdup of the fluid in the tank (J)"] 
-    S(t), [description = "Entropy holdup of the fluid in the tank (J/K)"]
+    #S(t), [description = "Entropy holdup of the fluid in the tank (J/K)"]
     F_out(t), [description = "Outlet molar flow rate (mol/s)"] 
     Fʷ_out(t), [description = "Outlet molar flow rate (mol/s)"]
     Q_out(t), [description = "Outlet volumetric flow rate (m³/s)"] # DoF
     height(t), [description = "Liquid level in vessel measured from bottom of the tank (m)"]
 
-    (Cᵢ_in(t))[1:Nc, 1:Ni_InPorts], [description = "Inlet concentration of each component (mol/m³)"] # DoF through inlet stream
-    (F_in(t))[1:Ni_InPorts], [description = "Inlet molar flow rate (mol/s)"] # DoF through inlet stream
-    (Q_in(t))[1:Ni_InPorts], [description = "Inlet volumetric flow rate(s) (m³/s)"]
-    (T_in(t))[1:Ni_InPorts], [description = "Inlet temperature (K)"] # DoF through inlet stream
-    (h_in(t))[1:Ni_InPorts], [description = "Inlet specific enthalpy (J/mol)"]
-    (ρ_in(t))[1:Ni_InPorts], [description = "Inlet density (mol/m³)"]
-    (ρʷ_in(t))[1:Ni_InPorts], [description = "Inlet density (mol/m³)"]
+    (Cᵢ_in(t))[1:Nc, 1:ninports], [description = "Inlet concentration of each component (mol/m³)"] # DoF through inlet stream
+    (F_in(t))[1:ninports], [description = "Inlet molar flow rate (mol/s)"] # DoF through inlet stream
+    (Q_in(t))[1:ninports], [description = "Inlet volumetric flow rate(s) (m³/s)"]
+    (T_in(t))[1:ninports], [description = "Inlet temperature (K)"] # DoF through inlet stream
+    (h_in(t))[1:ninports], [description = "Inlet specific enthalpy (J/mol)"]
+    (ρ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
+    (ρʷ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
     P_atm(t), [description = "Tank pressure (Pa)"] # Equal to inlet pressures.
     Q̇(t), [description = "Heat transfer rate (J/s)"] # Potential DoF
     (r(t))[1:Nri], [description = "Rate of each reaction for each component (mol/s/m³)"]
@@ -272,66 +307,81 @@ overall_reaction_rate = [R[i] ~ sum(scalarize(r[:].*Coef_Cr[:, i])) for i in 1:N
    
 #Inlet connector variables's equations
 atm_pressure = [P_atm ~ InPorts[1].P]
-mass_density_eqs = [ρʷ_in[j] ~ InPorts[j].ρʷ for j in 1:Ni_InPorts]
-molar_density_eqs = [ρ_in[j] ~ InPorts[j].ρ for j in 1:Ni_InPorts]
-inletenthalpy = [h_in[j] ~ InPorts[j].H for j in 1:Ni_InPorts]
-inletconcentrations = [Cᵢ_in[i, j] ~ InPorts[j].z₁[i]*ρ_in[j] for j in 1:Ni_InPorts for i in 1:Nc]
-inlettemperature_eqs = [T_in[j] ~ InPorts[j].T for j in 1:Ni_InPorts]
-inletmolarflow_eqs = [F_in[j] ~ InPorts[j].F for j in 1:Ni_InPorts]
-volumetricflow_eqs = [Q_in[j] ~ F_in[j] / ρ_in[j] for j in 1:Ni_InPorts]
+mass_density_eqs = [ρʷ_in[j] ~ InPorts[j].ρʷ for j in 1:ninports]
+molar_density_eqs = [ρ_in[j] ~ InPorts[j].ρ for j in 1:ninports]
+inletenthalpy = [h_in[j] ~ InPorts[j].H for j in 1:ninports]
+inletconcentrations = [Cᵢ_in[i, j] ~ InPorts[j].z₁[i]*ρ_in[j] for j in 1:ninports for i in 1:Nc]
+inlettemperature_eqs = [T_in[j] ~ InPorts[j].T for j in 1:ninports]
+inletmolarflow_eqs = [F_in[j] ~ InPorts[j].F for j in 1:ninports]
+volumetricflow_eqs = [Q_in[j] ~ F_in[j] / ρ_in[j] for j in 1:ninports]
 
-eqs = [reaction_rate; overall_reaction_rate; atm_pressure; mass_density_eqs; molar_density_eqs; inletenthalpy; inletconcentrations; inlettemperature_eqs; inletmolarflow_eqs; volumetricflow_eqs]
 
 #Outlet connector equations:
 out_conn = [Out.P ~ P_out
             Out.T ~ T
-            Out.F ~ F_out
-            Out.Fʷ ~ Fʷ_out
+            Out.F ~ - F_out
+            Out.Fʷ ~ - Fʷ_out
             Out.H ~ H/N
-            Out.S ~ S/N
+            Out.S ~ 0.0
             Out.ρʷ ~ ρʷ
             Out.ρ ~ ρ
             scalarize(Out.z₁ .~ Nᵢ/N)...
             Out.MW[1] ~ MW
 ]
 
-    if phase == :liquid
+if phase == :liquid
+out_conn_phases = [
+                scalarize(Out.z₂ .~ 0.0)...
+                scalarize(Out.z₃ .~ Out.z₁)...
+                Out.MW[2] ~ 0.0
+                Out.MW[3] ~ Out.MW[1]
+                Out.α_g ~ 0.0]
+
+elseif phase == :vapor
     out_conn_phases = [
-                    scalarize(Out.z₂ .~ 0.0)...
-                    scalarize(Out.z₃ .~ Out.z₁)...
-                    Out.MW[2] ~ 0.0
-                    Out.MW[3] ~ Out.MW[1]
-                    Out.α_g ~ 0.0]
-
-    elseif phase == :vapor
-        out_conn_phases = [
-        scalarize(Out.z₂ .~ Out.z₁)...
-        scalarize(Out.z₃ .~ 0.0)...
-        Out.MW[2] ~ Out.MW[1]
-        Out.MW[3] ~ 0.0
-        Out.α_g ~ 1.0]
-    end
+    scalarize(Out.z₂ .~ Out.z₁)...
+    scalarize(Out.z₃ .~ 0.0)...
+    Out.MW[2] ~ Out.MW[1]
+    Out.MW[3] ~ 0.0
+    Out.α_g ~ 1.0]
+end
 
 
 
-    #balances
-    mass_balance = [D(M) ~ sum(scalarize(Q_in.*ρʷ_in)) - Q_out*ρʷ]
-    component_balance = [D(Nᵢ[i]) ~ sum(scalarize(Q_in.*Cᵢ_in[i, :])) - Q_out*Cᵢ[i] + R[i]*V for i in 1:Nc] #Neglectable loss to vapor phase head space
-    energy_balance = [D(H) ~ sum(scalarize(Q_in.*ρ_in.*h_in)) - Q_out*H/N*ρ + Q̇]
-    mass_volume_eq = [ρʷ*V ~ M]
-    mol_holdup = [N ~ sum(scalarize(Nᵢ))]
-    mol_to_concentration = [scalarize(Nᵢ .~ Cᵢ*V)...]
-    height_to_volume = [height*A ~ V]
-    volumetricflow_to_molarflow = [Q_out ~ F_out/ρ]
-    volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
+#balances
+mass_balance = [D(M) ~ sum(scalarize(Q_in.*ρʷ_in)) - Q_out*ρʷ]
+component_balance = [D(Nᵢ[i]) ~ sum(scalarize(Q_in.*Cᵢ_in[i, :])) - Q_out*Cᵢ[i] + R[i]*V for i in 1:Nc] #Neglectable loss to vapor phase head space
+energy_balance = [D(H) ~ sum(scalarize(Q_in.*ρ_in.*h_in)) - Q_out*ρ*H/N + Q̇]
+jacket_energy_balance = [Q̇ ~ -2.27*4184.0*(T - 288.7)*(1.0 - exp(-8440.26/(2.27*4184)))] 
+mass_volume_eq = [ρ*V ~ N]
+mol_holdup = [N ~ sum(scalarize(Nᵢ))]
+mol_to_concentration = [scalarize(Nᵢ .~ Cᵢ*V)...]
+height_to_volume = [height*A ~ V]
+volumetricflow_to_molarflow = [Q_out ~ F_out/ρ]
+volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
   
-    #Thermodynamic properties (outlet)
-    pressure_out = [phase == :liquid ? P_out ~ P_atm + ρʷ*GravitationalConst*(height - height_out) : P_out ~ P_atm] #Estimation considering static pressure (May be off as tank is agitated and not static)
-    density_eqs = [ρ ~ molar_density(model, P_out, T, scalarize(Nᵢ); phase = phase), ρʷ ~ mass_density(model, P_out, T, scalarize(Nᵢ); phase = phase)]
-    globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, Nᵢ; phase = phase)]
-    molar_mass = [MW ~ sum(MWs[i]*Nᵢ[i]/N)*gramsToKilograms]
-    entropy_eq = [S ~ entropy(model, P_atm, T, Nᵢ; phase = phase)]
+#Thermodynamic properties (outlet)
+pressure_out = [phase == :liquid ? P_out ~ P_atm + ρʷ*GravitationalConst*(height - height_out) : P_out ~ P_atm] #Estimation considering static pressure (May be off as tank is agitated and not static)
+density_eqs = [ρ ~ molar_density_simple(mymodel, P_out, T, Nᵢ)] 
+mass_density = [ρʷ ~ ρ*MW]
+globalEnthalpy_eq = [H ~ enthalpy_simple(mymodel, P_out, T, Nᵢ) + sum(scalarize(ΔH₀f.*Nᵢ))]
+molar_mass = [MW ~ sum(scalarize(MWs.*Nᵢ)/N)*gramsToKilograms]
 
-    eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;
-    out_conn_phases...; mass_balance...; component_balance...; energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
-    pressure_out...; density_eqs...; globalEnthalpy_eq...; molar_mass...; entropy_eq...] =#
+
+eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;
+out_conn_phases...; mass_balance...; component_balance...; energy_balance...; jacket_energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
+pressure_out...; density_eqs...; mass_density...; globalEnthalpy_eq...; molar_mass...]
+
+eqs_cstr = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; 
+inletmolarflow_eqs...; volumetricflow_eqs...; mass_balance...; component_balance...; energy_balance...; jacket_energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
+pressure_out...; density_eqs...; mass_density...; globalEnthalpy_eq...; molar_mass...]
+
+unfold_pars = []
+for par in pars
+    unfold_pars = [unfold_pars...; par...]
+end
+
+unfold_vars = []
+for var in vars
+    unfold_vars = [unfold_vars...; var...]
+end =#
