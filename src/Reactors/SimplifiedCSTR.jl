@@ -138,9 +138,9 @@ volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
   
 #Thermodynamic properties (outlet)
 pressure_out = [phase == :liquid ? P_out ~ P_atm : P_out ~ P_atm] #Estimation considering static pressure (May be off as tank is agitated and not static)
-density_eqs = [ρ ~ molar_density(model, P_out, T, Nᵢ)] 
+density_eqs = [ρ ~ molar_density_simple(model, P_out, T, Nᵢ)] 
 mass_density = [ρʷ ~ ρ*MW]
-globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, Nᵢ) + sum(scalarize(ΔH₀f.*Nᵢ))]
+globalEnthalpy_eq = [H ~ enthalpy_simple(model, P_out, T, Nᵢ) + sum(scalarize(ΔH₀f.*Nᵢ))]
 molar_mass = [MW ~ sum(scalarize(MWs.*Nᵢ))/N*gramsToKilograms]
 
 

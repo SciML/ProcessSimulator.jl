@@ -45,11 +45,11 @@ struct my_model
     h_0
 end
 
-function enthalpy(m::my_model, P, T, N)
+function enthalpy_simple(m::my_model, P, T, N)
     sum(m.Cp[i]*N[i]*(T - 298.15) for i in eachindex(N)) + sum(N[i]*m.h_0[i] for i in eachindex(N))
 end
 
-function molar_density(m::my_model, P, T, N)
+function molar_density_simple(m::my_model, P, T, N)
         sum(N)/sum(N[i]/(m.ρ_coefs["a"][i] + m.ρ_coefs["b"][i]*T + m.ρ_coefs["c"][i]*T^2  + m.ρ_coefs["d"][i]*T^3) for i in eachindex(N))  
 end
 

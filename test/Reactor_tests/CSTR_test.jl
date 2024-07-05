@@ -12,16 +12,11 @@ substances = ["water", "methanol", "propyleneglycol","methyloxirane"]
 properties = Dict(subs => load_component_properties(subs) for subs in substances)
 idealmodel = ReidIdeal(substances; userlocations = read_reidcp(properties, substances))
 PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
-enthalpy(PCSAFT_model, 5*101325.0, 315., [1.0, 2.0, 3.0, 0.])  
-@variables begin
-     P(t), T(t), (N(t))[1:4]::Real
-    end
-
-enthalpy(PCSAFT_model, P, T, scalarize(N))
+enthalpy(PCSAFT_model, 5*101325.0, 298.0, [1.0, 1.0, 1.0, 1.0], phase = :liquid)
 
 @named source = MaterialSource(;substances_user =  substances,
 model = PCSAFT_model,
-P_user = 101325, T_user = 297.0,
+P_user = 101325.0, T_user = 297.0,
 Fₜ_user = (36.3 + 453.6 + 45.4)*1e3/3600,
 zₜ_user = [0.8473, 1.0 - (0.0678 + 0.8473), 0.0, 0.0678], guesses = Dict((:zᵂⱼᵢ) => ones(3, 4)*0.25))
 
@@ -40,8 +35,6 @@ pho_coef = Dict("a" => [78821.04345816873, 38133.33588802956, 18453.26055238924,
 
 
 mymodel = my_model(Cps, pho_coef, h_0)
-
-
 
 
 @named R_101 = SimpleCSTR(; substances_user = substances, 
@@ -74,14 +67,14 @@ u0 = [sistema.R_101.Nᵢ[1] => 1.9*57252.65, sistema.R_101.Nᵢ[2] => 0.0,
  sistema.R_101.Nᵢ[3] => 0.0, sistema.R_101.Nᵢ[4] => 0.0,
  sistema.R_101.T => 297.0]
 
-prob = ODAEProblem(sistema, u0, (0.0, 1*3600.0))
-sol = solve(prob, FBDF(autodiff = true), abstol =  1e-12, reltol = 1e-12)
+prob = ODEProblem(sistema, u0, (0.0, 1*3600.0))
+sol = solve(prob, QNDF(), abstol =  1e-8, reltol = 1e-8)
 using Plots
 plot(sol.t, sol[sistema.R_101.T], label = "Temperature")
-plot(sol[sistema.R_101.Cᵢ[1]], label = "water")
-plot(sol[sistema.R_101.V], label = "Volume")
-plot(sol[sistema.R_101.Cᵢ[3]], label = "propyleneglycol")
-plot(sol[sistema.R_101.Cᵢ[4]], label = "methyloxirane")
+plot(sol.t, sol[sistema.R_101.Cᵢ[1]], label = "water")
+plot(sol.t, sol[sistema.R_101.V], label = "Volume")
+plot(sol.t, sol[sistema.R_101.Cᵢ[3]/10^3], label = "propyleneglycol")
+plot(sol.t, sol[sistema.R_101.Cᵢ[4]], label = "methyloxirane")
 
 
 solve(prob, Rodas)
