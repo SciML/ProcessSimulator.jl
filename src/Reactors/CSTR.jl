@@ -42,16 +42,17 @@ vars = @variables begin
     M(t), [description = "Mass holdup in the tank (kg)"]
     N(t), [description = "Total molar holdup in the tank (kmol)"]
     V(t), [description = "Volume holdup in the tank (m³)", guess = guesses[:V]]
-    #(Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
-    N1(t), [description = "Molar holdup of component 1 in the tank (mol)"]
-    N2(t), [description = "Molar holdup of component 2 in the tank (mol)"]
-    N3(t), [description = "Molar holdup of component 3 in the tank (mol)"]
-    N4(t), [description = "Molar holdup of component 4 in the tank (mol)"]
-    #(Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)", guess = guesses[:Cᵢ]]
-    C1(t), [description = "Concentration of component 1 in the tank (mol/m³)", guess = guesses[:C1]]
-    C2(t), [description = "Concentration of component 2 in the tank (mol/m³)", guess = guesses[:C2]]
-    C3(t), [description = "Concentration of component 3 in the tank (mol/m³)", guess = guesses[:C3]]
-    C4(t), [description = "Concentration of component 4 in the tank (mol/m³)", guess = guesses[:C4]]
+    (Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
+    (yᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
+    #N1(t), [description = "Molar holdup of component 1 in the tank (mol)"]
+    #N2(t), [description = "Molar holdup of component 2 in the tank (mol)"]
+    #N3(t), [description = "Molar holdup of component 3 in the tank (mol)"]
+    #N4(t), [description = "Molar holdup of component 4 in the tank (mol)"]
+    (Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)", guess = guesses[:Cᵢ]]
+    #C1(t), [description = "Concentration of component 1 in the tank (mol/m³)", guess = guesses[:C1]]
+    #C2(t), [description = "Concentration of component 2 in the tank (mol/m³)", guess = guesses[:C2]]
+    #C3(t), [description = "Concentration of component 3 in the tank (mol/m³)", guess = guesses[:C3]]
+    #C4(t), [description = "Concentration of component 4 in the tank (mol/m³)", guess = guesses[:C4]]
     ρ(t), [description = "Molar Density of the fluid in the tank (mol/m³)"]
     ρʷ(t), [description = "Mass Density of the fluid in the tank (kg/m³)"]
     MW(t), [description = "Molecular weight of fluid in the tank (kg/kmol)"]  
@@ -81,7 +82,7 @@ end
     
 
 #Reaction equations
-reaction_rate = [r[i] ~ Af_r[i]*exp(-Ef_r[i]/(Rᵍ*T))*prod(scalarize(([C1, C2, C3, C4].^Do_r[i, :]))) for i in 1:Nri] # If there's an inert, the order is just zero, but it has to be written
+reaction_rate = [r[i] ~ Af_r[i]*exp(-Ef_r[i]/(Rᵍ*T))*prod(scalarize((Cᵢ.^Do_r[i, :]))) for i in 1:Nri] # If there's an inert, the order is just zero, but it has to be written
 overall_reaction_rate = [R[i] ~ sum(scalarize(r[:].*Coef_Cr[:, i])) for i in 1:Nc]  # If there's an inert, the coefficient is just zero, but it has to be written
 
    
@@ -102,17 +103,17 @@ out_conn = [Out.P ~ P_out
             Out.F ~ F_out
             Out.Fʷ ~ Fʷ_out
             Out.H ~ H/N
-            Out.S ~ 0.0
+            Out.S ~ 1e-10
             Out.ρʷ ~ ρʷ
             Out.ρ ~ ρ
-            scalarize(Out.z₁ .~ [N1, N2, N3, N4]/N)...
+            scalarize(Out.z₁ .~ Nᵢ/N)...
             Out.MW[1] ~ MW
 ]
 
 if phase == :liquid
 out_conn_phases = [
                 scalarize(Out.z₂ .~ 0.0)...
-                scalarize(Out.z₃ .~ [N1, N2, N3, N4]/N)...
+                scalarize(Out.z₃ .~ Nᵢ/N)...
                 Out.MW[2] ~  0.0
                 Out.MW[3] ~ MW
                 Out.α_g ~ 0.0
@@ -120,7 +121,7 @@ out_conn_phases = [
 
 elseif phase == :vapor
     out_conn_phases = [
-    scalarize(Out.z₂ .~ [N1, N2, N3, N4]/N)...
+    scalarize(Out.z₂ .~ Nᵢ/N)...
     scalarize(Out.z₃ .~ 0.0)...
     Out.MW[2] ~ MW
     Out.MW[3] ~ 0.0
@@ -130,26 +131,26 @@ end
 
 #balances
 #mass_balance = [D(M) ~ sum(scalarize(Q_in.*ρʷ_in)) - Q_out*ρʷ]
-component_balance = [D(N1) ~ sum(scalarize(Q_in[:].*Cᵢ_in[1, :])) - Q_out*C1 + R[1]*V,
-                     D(N2) ~ sum(scalarize(Q_in[:].*Cᵢ_in[2, :])) - Q_out*C2 + R[2]*V,
-                     D(N3) ~ sum(scalarize(Q_in[:].*Cᵢ_in[3, :])) - Q_out*C3 + R[3]*V,
-                     D(N4) ~ sum(scalarize(Q_in[:].*Cᵢ_in[4, :])) - Q_out*C4 + R[4]*V] #Neglectable loss to vapor phase head space
+component_balance = [D(Nᵢ[1]) ~ sum(scalarize(Q_in[:].*Cᵢ_in[1, :])) - Q_out*Cᵢ[1] + R[1]*V,
+                     D(Nᵢ[2]) ~ sum(scalarize(Q_in[:].*Cᵢ_in[2, :])) - Q_out*Cᵢ[2] + R[2]*V,
+                     D(Nᵢ[3]) ~ sum(scalarize(Q_in[:].*Cᵢ_in[3, :])) - Q_out*Cᵢ[3] + R[3]*V,
+                     D(Nᵢ[4]) ~ sum(scalarize(Q_in[:].*Cᵢ_in[4, :])) - Q_out*Cᵢ[4] + R[4]*V] #Neglectable loss to vapor phase head space
 
 energy_balance = [D(H) ~ sum(scalarize(Q_in.*ρ_in.*h_in)) - Q_out*ρ*H/N + Q̇]
 jacket_energy_balance = [Q̇ ~ -2.27*4184.0*(T - 288.7)*(1.0 - exp(-8440.26/(2.27*4184)))] 
 mass_volume_eq = [ρʷ*V ~ M, ρ*V ~ N] 
-mol_holdup = [N ~ N1 + N2 + N3 + N4]
-mol_to_concentration = [scalarize([N1, N2, N3, N4] .~ [C1, C2, C3, C4]*V)...]
+mol_holdup = [N ~ scalarize(sum(Nᵢ))]
+mol_to_concentration = [scalarize(Nᵢ .~ Cᵢ*V)... scalarize(yᵢ .~ Nᵢ/N)...]
 height_to_volume = [height*A ~ V]
 volumetricflow_to_molarflow = [Q_out*ρ ~ F_out] # Modified
 volumetricflow_to_massflow = [Q_out*ρʷ ~ Fʷ_out, Fʷ_out ~ sum(scalarize(Q_in.*ρʷ_in))] # Flow driven simulation (perfect flow control)
   
 #Thermodynamic properties (outlet)
 pressure_out = [phase == :liquid ? P_out ~ P_atm : P_out ~ P_atm] 
-density_eqs = [ρ ~ molar_density(model, P_out, T, [N1, N2, N3, N4]; phase = phase)] 
+density_eqs = [ρ ~ predict_ρ(model, [T; yᵢ...])] 
 mass_density = [ρʷ ~ ρ*MW]
-globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, [N1, N2, N3, N4]; phase = phase) + sum(scalarize(ΔH₀f.*[N1, N2, N3, N4]))]
-molar_mass = [MW ~ sum(scalarize(MWs.*[N1, N2, N3, N4]))/N*gramsToKilograms]
+globalEnthalpy_eq = [H ~ predict_h(model, [T; yᵢ...])*N + sum(scalarize(ΔH₀f.*Nᵢ))]
+molar_mass = [MW ~ sum(scalarize(MWs.*Nᵢ))/N*gramsToKilograms]
 
 
 eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;

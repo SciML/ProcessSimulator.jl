@@ -54,24 +54,24 @@ function molar_density_simple(m::my_model, P::Real, T::Real, N::AbstractVectorOf
 end
  =#
 
-
-rho_surrogate = load_object(abspath(joinpath(@__DIR__, "database/surrogates/rho_surrogate.jld")))
-h_surrogate = load_object(abspath(joinpath(@__DIR__, "database/surrogates/H_surrogate.jld")))
-
 struct surrogates
     rho::RadialBasis
     h::RadialBasis
 end
 
-surro = surrogates(rho_surrogate, h_surrogate)
-
-function predict_ρ(surrogate::surrogates, T, x::AbstractArray)
-    surrogate.rho([T, x...])
+function predict_ρ(surrogate::surrogates, x::Vector{<:AbstractFloat})
+    surrogate.rho(x)
 end
 
-function predict_h(surrogate::surrogates, T, x::AbstractArray)
-    surrogate.h([T, x...])
+function predict_h(surrogate::surrogates, x::Vector{<:AbstractFloat})
+    surrogate.h(x)
 end
 
-@register_symbolic predict_ρ(surrogate::surrogates, T, x::AbstractArray)
-@register_symbolic predict_h(surrogate::surrogates, T, x::AbstractArray)
+predict_h(surrogate::surrogates, x::Vector{Num}) = Symbolics.Num(Symbolics.Term{Real}(predict_h, Any[Symbolics.unwrap.(x)], metadata = nothing)) 
+predict_ρ(surrogate::surrogates, x::Vector{Num}) = Symbolics.Num(Symbolics.Term{Real}(predict_ρ, Any[Symbolics.unwrap.(x)], metadata = nothing)) 
+
+#= @register_symbolic predict_ρ(surrogate::surrogates,x::AbstractArray) 
+@register_symbolic predict_h(surrogate::surrogates, x::AbstractArray)
+@register_symbolic predict_ρ(surrogate::surrogates, x::Symbolics.Arr{Num, 1}) false
+@register_symbolic predict_h(surrogate::surrogates, x::Symbolics.Arr{Num, 1}) false =#
+

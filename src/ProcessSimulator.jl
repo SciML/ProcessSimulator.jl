@@ -10,7 +10,7 @@ using Clapeyron
 import Clapeyron: enthalpy, molar_density
 
 include("utils")
-export load_component_properties, read_reidcp, my_model, enthalpy_simple, molar_density_simple
+export load_component_properties, read_reidcp, surrogates, predict_ρ, predict_h
 
 include("Sources/MaterialSource.jl")
 export MaterialSource
