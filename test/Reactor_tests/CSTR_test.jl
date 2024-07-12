@@ -1,6 +1,6 @@
 using ProcessSimulator
 using ModelingToolkit, DifferentialEquations, Clapeyron
-import ModelingToolkit: get_unknowns, get_observed, get_defaults, get_eqs, scalarize
+#import ModelingToolkit: get_unknowns, get_observed, get_defaults, get_eqs, scalarize
 using ModelingToolkit: t_nounits as t, D_nounits as D
 using Test
 
@@ -12,7 +12,7 @@ substances = ["water", "methanol", "propyleneglycol","methyloxirane"]
 properties = Dict(subs => load_component_properties(subs) for subs in substances)
 idealmodel = ReidIdeal(substances; userlocations = read_reidcp(properties, substances))
 PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
-enthalpy(PCSAFT_model, 5*101325.0, 298.0, [1.0, 1.0, 1.0, 1.0], phase = :liquid)
+enthalpy(PCSAFT_model, 5*101325.0, 298.0, [1.0, 1.0, 1.0, 1.0])
 
 @named source = MaterialSource(;substances_user =  substances,
 model = PCSAFT_model,
@@ -39,7 +39,7 @@ mymodel = my_model(Cps, pho_coef, h_0)
 
 @named R_101 = SimpleCSTR(; substances_user = substances, 
     phase = :liquid, 
-    model = mymodel,
+    model = PCSAFT_model,
     Reaction = Reaction,
     ninports = 1, 
     Ac = 1.93, #m²
@@ -48,7 +48,7 @@ mymodel = my_model(Cps, pho_coef, h_0)
     )
 
 
-for eq in full_equations(R_101)
+for eq in equations(R_101)
     println(eq)
 end
 get_defaults(R_101)
@@ -70,14 +70,15 @@ u0 = [sistema.R_101.Nᵢ[1] => 1.9*57252.65, sistema.R_101.Nᵢ[2] => 0.0,
 prob = ODEProblem(sistema, u0, (0.0, 1*3600.0))
 sol = solve(prob, QNDF(), abstol =  1e-8, reltol = 1e-8)
 using Plots
+
+plot(sol.t, sol[sistema.R_101.R[3]], label = "Rate of reaction")
 plot(sol.t, sol[sistema.R_101.T], label = "Temperature")
 plot(sol.t, sol[sistema.R_101.Cᵢ[1]], label = "water")
 plot(sol.t, sol[sistema.R_101.V], label = "Volume")
-plot(sol.t, sol[sistema.R_101.Cᵢ[3]/10^3], label = "propyleneglycol")
+plot(sol.t, sol[sistema.R_101.Cᵢ[3]], label = "propyleneglycol")
 plot(sol.t, sol[sistema.R_101.Cᵢ[4]], label = "methyloxirane")
 
 
-solve(prob, Rodas)
 #= using ProcessSimulator
 using Test
 
