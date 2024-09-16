@@ -1,13 +1,13 @@
 module ProcessSimulator
 
 
-using ModelingToolkit, JSON , DifferentialEquations
+using ModelingToolkit, JSON, OrdinaryDiffEq
 using ModelingToolkit: t_nounits as t, D_nounits as D
 import ModelingToolkit: scalarize, equations, get_unknowns, defaults
-using Clapeyron, Symbolics
+using Clapeyron
 
 include("utils")
-export load_component_properties, read_reidcp, my_model, enthalpy_simple, molar_density_simple
+export load_component_properties, read_reidcp
 
 include("Sources/MaterialSource.jl")
 export MaterialSource
@@ -15,11 +15,11 @@ export MaterialSource
 include("Reactors/ReactionManager/KineticReaction.jl")
 export KineticReactionNetwork
 
-include("Reactors/SimplifiedCSTR.jl")
-export SimpleCSTR
+include("Reactors/CSTR.jl")
+export CSTR
 
 include("Sources/Sourceutils.jl")
-export Display
+export thermal_energy_connector
 
 
 end

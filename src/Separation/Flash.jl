@@ -1,11 +1,8 @@
-@component function CSTR(; substances_user, 
+@component function FlashDrum(; substances_user, 
     Nc = length(substances_user), 
-    phase, 
     model,
-    Reaction,
     ninports,  
-    Ac, 
-    height_out_port,
+    Volume, 
     name,
     guesses 
    )
@@ -20,15 +17,10 @@ Nri = Reaction.Nri
 #Properties of individual substances
 properties = Dict(subs => load_component_properties(subs) for subs in substances_user)
 MWs = [properties[subs]["MW"] for subs in substances_user]
-ΔH₀f = [properties[subs]["IGHF"]/10^3 for subs in substances_user] # (IG formation enthalpy) J/mol
 
 
 pars = @parameters begin 
-Af_r[1:Nri] = Reaction.Af_r, [description = "Arrhenius constant of each reaction at given temperature ()"]
-Coef_Cr[1:Nri, 1:Nc] = Reaction.Coef_Cr, [description = "Stoichiometric coefficients of each component in each reaction (-)"]
-Do_r[1:Nri, 1:Nc] = Reaction.Do_r, [description = "Forward order of the components (-) "]
-Ef_r[1:Nri] = Reaction.Ef_r, [description = "Activation energy of each reaction at given temperature ()"]
-A = Ac, [description = "Cross sectional area of the tank (m²)"]
+V = Volume, [description = "Drum volume (m3)"]
 end
 
 #Ports creation
@@ -40,9 +32,9 @@ OutPorts = @named begin
 end   
 
 vars = @variables begin
-    M(t), [description = "Mass holdup in the tank (kg)"]
-    N(t), [description = "Total molar holdup in the tank (kmol)"]
-    V(t), [description = "Volume holdup in the tank (m³)", guess = guesses[:V]]
+    M(t)[1:3], [description = "Mass holdup in the tank (kg)"]
+    N(t)[1:3], [description = "Total molar holdup in the tank (kmol)"]
+    V(t)[1:3], [description = "Volume holdup in the tank (m³)", guess = guesses[:V]]
     (Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
     (Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)", guess = guesses[:Cᵢ]]
     ρ(t), [description = "Molar Density of the fluid in the tank (mol/m³)"]
