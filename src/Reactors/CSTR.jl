@@ -37,6 +37,7 @@ InPorts = [matcon(; Nc = Nc, name = Symbol("InPorts$i")) for i in 1:ninports]
 
 OutPorts = @named begin
     Out = matcon(; Nc = Nc) 
+    EnergyCon = thermal_energy_connector()
 end   
 
 vars = @variables begin
@@ -121,15 +122,15 @@ end
 
 
 #balances
-#mass_balance = [D(M) ~ sum(scalarize(Q_in.*ρʷ_in)) - Q_out*ρʷ]
+
 component_balance = [D(Nᵢ[i]) ~ sum(scalarize(Q_in[:].*Cᵢ_in[i, :])) - Q_out*Cᵢ[i] + R[i]*V for i in 1:Nc] #Neglectable loss to vapor phase head space
 energy_balance = [D(H) ~ sum(scalarize(Q_in.*ρ_in.*h_in)) - Q_out*ρ*H/N + Q̇]
 jacket_energy_balance = [Q̇ ~ -2.27*4184.0*(T - 288.7)*(1.0 - exp(-8440.26/(2.27*4184)))] 
-mass_volume_eq = [ρʷ*V ~ M, ρ*V ~ N] #Modified to calculate volume from N
+mass_volume_eq = [ρʷ*V ~ M, ρ*V ~ N] 
 mol_holdup = [N ~ sum(collect(Nᵢ))]
 mol_to_concentration = [scalarize(Nᵢ .~ Cᵢ*V)...]
 height_to_volume = [height*A ~ V]
-volumetricflow_to_molarflow = [Q_out ~ F_out/ρ, Q_out ~ sum(scalarize(Q_in))] # Modified
+volumetricflow_to_molarflow = [Q_out ~ F_out/ρ, Q_out ~ sum(scalarize(Q_in))]
 volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
   
 #Thermodynamic properties (outlet)
@@ -149,4 +150,6 @@ ODESystem([eqs...;], t, collect(Iterators.flatten(vars)),
  collect(Iterators.flatten(pars)); name, systems = [InPorts...; OutPorts])
 
 end
+
+export CSTR
 

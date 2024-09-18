@@ -26,6 +26,7 @@
 end
 
 
+
 @connector function thermal_energy_connector(; name)
 
         vars = @variables begin
@@ -38,23 +39,3 @@ end
 
 end
 
-
-function ModelingToolkit.connect(::Type{matcon}, con...)
-        eqs = []
-        for i in length(con) - 1
-            push!(eqs, con[i].P + con[i+1].P ~ 0.0)
-            push!(eqs, con[i].T + con[i+1].T ~ 0.0)  
-            push!(eqs, con[i].F + con[i+1].F ~ 0.0) 
-            push!(eqs, con[i].Fʷ + con[i+1].Fʷ ~ 0.0)
-            push!(eqs, con[i].H + con[i+1].H ~ 0.0) 
-            push!(eqs, con[i].S + con[i+1].S ~ 0.0)
-            push!(eqs, scalarize(con[i].z₁ .+ con[i+1].z₁ .~ 0.0)...)
-            push!(eqs, scalarize(con[i].z₂ .+ con[i+1].z₂ .~ 0.0)...)
-            push!(eqs, scalarize(con[i].z₃ .+ con[i+1].z₃ .~ 0.0)...) 
-            push!(eqs, con[i].α_g + con[i+1].α_g ~ 0.0)
-            push!(eqs, con[i].ρ + con[i+1].ρ ~ 0.0)
-            push!(eqs, con[i].ρʷ + con[i+1].ρʷ ~ 0.0)
-            push!(eqs, scalarize(con[i].MW .+ con[i+1].MW .~ 0.0)...)
-        end
-        return eqs
-end

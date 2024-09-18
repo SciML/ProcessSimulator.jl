@@ -11,7 +11,6 @@ using Test
 substances = ["water", "methanol", "propyleneglycol","methyloxirane"]
 idealmodel = ReidIdeal(substances; userlocations = read_reidcp(substances))
 PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
-#enthalpy(PCSAFT_model, 5*101325.0, 298.0, [1.0, 1.0, 1.0, 1.0])
 
 @named source = MaterialSource(;substances_user =  substances,
 model = PCSAFT_model,
@@ -59,7 +58,7 @@ u0 = [sistema.R_101.Nᵢ[1] => 1.9*57252.65, sistema.R_101.Nᵢ[2] => 0.0,
  sistema.R_101.T => 297.0]
 
 prob = ODEProblem(sistema, u0, (0.0, 2*3600.0))
-sol = solve(prob, QNDF(), abstol =  1e-8, reltol = 1e-8)
+sol = solve(prob, FBDF(), abstol =  1e-6, reltol = 1e-6)
 using Plots
 
 plot(sol.t, sol[sistema.R_101.R[3]], label = "Rate of reaction")

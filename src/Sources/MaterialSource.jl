@@ -242,3 +242,4 @@
     ODESystem([eqs...;], t, unfold_vars, []; name, systems) 
 end
 
+export MaterialSource

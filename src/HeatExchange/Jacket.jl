@@ -1,5 +1,5 @@
-@component function Jacket(;substances,
-    Nc = length(substances),
+@component function Jacket(;substances_user,
+    Nc = length(substances_user),
     phase,
     thermal_fluid_model,
     heat_transfer_coef,
@@ -7,6 +7,8 @@
    )
 
 
+
+properties = Dict(subs => load_component_properties(subs) for subs in substances_user)
 MWs = [properties[subs]["MW"] for subs in substances_user]
 
 pars = @parameters begin
@@ -29,27 +31,29 @@ vars = @variables begin
     P_out(t), [description = "Thermal fluid exiting pressure (Pa)"]
     F_out(t), [description = "Thermal fluid exiting molar flow rate (mol/s)"] 
     Fʷ_out(t), [description = "Thermal fluid exiting mass flow rate (mol/s)"]
-    Q_out(t), [description = "Thermal fluid exiting volumetric flow rate (m³/s)"] # DoF
-    Q̇(t), [description = "Heat transfer rate leaving/entering the jacket"] 
+    Q_out(t), [description = "Thermal fluid exiting volumetric flow rate (m³/s)"] 
+    Q̇(t), [description = "Heat transfer rate from/to the jacket"] 
 end
 
 
-enthalpy = H ~ enthalpy(thermal_fluid_model, P_out, Tⱼ, Out.z₁, phase = "unknown")
+enthalpy_eq = [H ~ enthalpy(thermal_fluid_model, P_out, Tⱼ, Out.z₁, phase = "unknown")]
 
-entropy = S ~ 0.0
+entropy_eq = [S ~ 0.0]
 
-densities = [ρ ~ molar_density(thermal_fluid_model, P_out, Tⱼ, Out.z₁, phase = "unknown")
+densities_eq = [ρ ~ molar_density(thermal_fluid_model, P_out, Tⱼ, Out.z₁, phase = "unknown")
              ρʷ ~ mass_density(thermal_fluid_model, P_out, Tⱼ, Out.z₁, phase = "unknown")]
 
 pressure_drop = [P_out ~ In.P]
 
-mass_balance = [In.Fᵂⱼ[1] - Fʷ_out ~ 0.0
+mass_balance = [In.Fʷ - Fʷ_out ~ 0.0
                 Q_out ~ Fʷ_out/ρʷ
                 Q_out ~ F_out/ρ]
 
-lmtd = LMTD ~ log((EnergyCon.T - In.T)/(EnergyCon.T - Tⱼ))
-heat_flux = Q̇ ~ U*EnergyCon.A*(In.T - Tⱼ)/LMTD
-energy_balance = In.H*In.F - H*F_out - Q̇ ~ 0.0 # Quasi steady state assumption (Temperature change is much faster than reactor change)
+lmtd = [LMTD ~ log((EnergyCon.T - In.T)/(EnergyCon.T - Tⱼ))]
+
+heat_flux = [Q̇ ~ U*EnergyCon.A*(In.T - Tⱼ)/LMTD]
+
+energy_balance = [In.H*In.F - H*F_out - Q̇ ~ 0.0] # Quasi steady state assumption (Temperature change is much faster than reactor change)
 
 
 
@@ -63,7 +67,7 @@ out_conn = [Out.P ~ P_out
             Out.ρʷ ~ ρʷ
             Out.ρ ~ ρ
             scalarize(Out.z₁ .~ In.z₁)...
-            Out.MW[1] ~ MW
+            Out.MW[1] ~ MWs
             EnergyCon.ϕᴱ ~ Q̇
 ]
 
@@ -73,20 +77,23 @@ if phase == :liquid
                     scalarize(Out.z₂ .~ 0.0)...
                     scalarize(Out.z₃ .~ In.z₁)...
                     Out.MW[2] ~  0.0
-                    Out.MW[3] ~ MW
+                    Out.MW[3] ~ MWs
                     Out.α_g ~ 0.0]
     
     elseif phase == :vapor
         out_conn_phases = [
         scalarize(Out.z₂ .~ In.z₁)...
         scalarize(Out.z₃ .~ 0.0)...
-        Out.MW[2] ~ MW
+        Out.MW[2] ~ MWs
         Out.MW[3] ~ 0.0
         Out.α_g ~ 1.0]
-    end
+end
 
-eqs = [enthalpy...; entropy...; densities...; pressure_drop...; mass_balance...; lmtd...; heat_flux...; energy_balance...; out_conn...; out_conn_phases...]
+eqs = [enthalpy_eq...; entropy_eq...; densities_eq...; pressure_drop...; mass_balance...; lmtd...; heat_flux...; energy_balance...; out_conn...; out_conn_phases...]
 
-ODESystem([eqs...;], t, collect(Iterators.flatten(vars)), collect(Iterators.flatten(pars)); name, systems = [InPorts...; OutPorts])
+ODESystem([eqs...;], t, collect(Iterators.flatten(vars)), collect(Iterators.flatten(pars)); name, systems = [Out, In, EnergyCon])
 
 end
+
+
+export Jacket

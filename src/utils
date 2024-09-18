@@ -43,3 +43,4 @@ function read_reidcp(substances::Vector{String})
 end
 
 
+export load_component_properties, read_reidcp
