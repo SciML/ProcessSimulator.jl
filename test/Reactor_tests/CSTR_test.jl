@@ -43,8 +43,6 @@ for eq in equations(R_101)
 end
 
 
-@which Symbolics.connect(source.Out, R_101.InPorts1)
-
 cons = [connect(source.Out, R_101.InPorts1)]
 
 flowsheet = ODESystem(cons, t; name = :mycon, systems = [R_101, source])   
@@ -58,7 +56,7 @@ u0 = [sistema.R_101.Nᵢ[1] => 1.9*57252.65, sistema.R_101.Nᵢ[2] => 0.0,
  sistema.R_101.T => 297.0]
 
 prob = ODEProblem(sistema, u0, (0.0, 2*3600.0))
-sol = solve(prob, FBDF(), abstol =  1e-6, reltol = 1e-6)
+@time sol = solve(prob, QNDF(), abstol =  1e-6, reltol = 1e-6)
 using Plots
 
 plot(sol.t, sol[sistema.R_101.R[3]], label = "Rate of reaction")
