@@ -16,12 +16,7 @@
     (MW(t))[1:3], [description = "Molar mass (g/mol)", output = true] # 
     end
 
-    unfold_vars = []
-    for var in vars
-        unfold_vars = [unfold_vars...; var...]
-    end
-
-    ODESystem(Equation[], t, unfold_vars, []; name)
+    ODESystem(Equation[], t, collect(Iterators.flatten(vars)), []; name)
 
 end
 
