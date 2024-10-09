@@ -2,6 +2,6 @@ using ProcessSimulator
 using Test
 using SafeTestsets
 
-@safetestset "Gibbs reactor" begin
-     include("Reactor_tests/gibbs_tests.jl")
+@safetestset "Simple Steady State" begin
+     include("base/simple_steady_state.jl")
 end
