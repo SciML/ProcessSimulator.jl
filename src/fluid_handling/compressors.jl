@@ -2,26 +2,24 @@
 
     # Subsystems
     @named cv = SimpleControlVolume(ms;N_states=2,N_works=1)
-    @named cv_s = SimpleControlVolume(ms;N_states=2,N_works=1)
-    sys = [cv,cv_s]
+    sys = [cv]
 
     # Variables
     vars = @variables begin
-        ηᴱ(t),              [description="efficiency", unit="-", output=true]
+        T2_s(t),            [description="temperature", output=true]
+        ϱ2_s(t),            [description="density", output=true]
     end
 
-    pars = []
+    pars = @parameters begin
+        ηᴱ,                 [description="efficiency", output=true]
+    end
 
     # Equations
     eqs = [
-        cv.s1.p ~ cv_s.s1.p,
-        cv.s1.T ~ cv_s.s1.T,
-        cv.s2.p ~ cv_s.s2.p,
-        scalarize(cv.s1.nᵢ .~ cv_s.s1.nᵢ)...,
-        ms.VT_entropy(cv.s1.ϱ,cv.s1.T,cv.s1.nᵢ) ~ ms.VT_entropy(cv_s.s2.ϱ,cv_s.s2.T,cv_s.s2.nᵢ),
-        ηᴱ ~ cv.Ws[1] / cv_s.Ws[1]
+        ms.VT_entropy(cv.f1.s.ϱ,cv.f1.s.T,cv.f1.c.xᵢ) ~ ms.VT_entropy(cv.f2.s.ϱ,cv.f2.s.T,cv.f2.c.xᵢ)
+        ϱ2_s ~ ms.molar_density(cv.f2.c.p,T2_s,cv.f2.c.xᵢ)
+        ηᴱ ~ cv.Ws[1] / (ms.VT_enthalpy(ϱ2_s,T2_s,cv.f2.c.xᵢ) - ms.VT_enthalpy(cv.f1.s.ϱ,cv.f1.s.T,cv.f1.c.xᵢ))
     ]
-    eqs = Equation[eqs...]
 
-    return ODESystem([eqs...], t, vars, pars; name, systems=sys)
+    return ODESystem(eqs, t, vars, pars; name, systems=sys)
 end
