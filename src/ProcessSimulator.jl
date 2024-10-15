@@ -6,7 +6,7 @@ using ModelingToolkit: t_nounits as t, D_nounits as D
 import ModelingToolkit: scalarize, equations, get_unknowns, defaults
 using Clapeyron
 
-include("utils")
+include("utils.jl")
 
 include("Sources/MaterialSource.jl")
 
