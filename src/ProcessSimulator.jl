@@ -16,6 +16,8 @@ include("Reactors/CSTR.jl")
 
 include("HeatExchange/Jacket.jl")
 
+include("Separation/Flash.jl")
+
 include("Sources/Sourceutils.jl")
 
 

@@ -14,12 +14,12 @@
     gramsToKilograms = 10^(-3)
 
     vars = @variables begin
-        P(t), [description = "Pressure (Pa)", input = true]
-        T(t), [description = "Temperature (K)", input = true]
-        (zₜ(t))[1:Nc], [description = "Components molar fraction (-)", input = true]
-        Fₜ(t), [description = "Total molar flow rate (mol/s)", input = true]
-        Tc(t), [description = "Critical temperature (K)", output = true]
-        Pc(t), [description = "Critical pressure (Pa)", output = true]
+        P(t), [description = "Pressure (Pa)"]
+        T(t), [description = "Temperature (K)"]
+        (zₜ(t))[1:Nc], [description = "Components molar fraction (-)"]
+        Fₜ(t), [description = "Total molar flow rate (mol/s)"]
+        Tc(t), [description = "Critical temperature (K)"]
+        Pc(t), [description = "Critical pressure (Pa)"]
         P_buble(t), [description = "Bubble point pressure (Pa)"]
         P_dew(t), [description = "Dew point pressure (Pa)"]
         α_g(t), [description = "Vapor phase molar fraction"]
@@ -54,16 +54,11 @@
         Out.P ~ P 
         Out.T ~ T  
         Out.F ~ Fₜ # F is negative as it is leaving the pbject
-        Out.Fʷ ~ Fᵂⱼ[1]
         Out.H ~ Hⱼ[1] 
-        Out.S ~ Sⱼ[1] 
         scalarize(Out.z₁ .~ zⱼᵢ[1, :])...
         scalarize(Out.z₂ .~ zⱼᵢ[2, :])...
         scalarize(Out.z₃ .~ zⱼᵢ[3, :])...
         Out.α_g ~ α_g 
-        Out.ρ ~ ρ[1]
-        Out.ρʷ ~ ρʷ[1] 
-        scalarize(Out.MW .~ MWⱼ)...
     ]
 
     #Global Mass and Molar balances
@@ -234,12 +229,8 @@
     #phase 1 is total, 2 is vapor, 3 is liquid
     eqs = [eqs_conn..., global_mol_balance..., molar_to_mass..., component_balance..., pc...]
     
-    unfold_vars = []
-    for var in vars
-        unfold_vars = [unfold_vars...; var...]
-    end
 
-    ODESystem([eqs...;], t, unfold_vars, []; name, systems) 
+    ODESystem([eqs...;], t,  collect(Iterators.flatten(vars)), []; name, systems) 
 end
 
 export MaterialSource

@@ -1,144 +1,135 @@
-@component function FlashDrum(; substances_user, 
-    Nc = length(substances_user), 
+@component function ThreePortDrum(; substances,
+    non_volatiles::Vector{Bool} = falses(length(substances)),
+    non_condensables::Vector{Bool} = falses(length(substances)),
+    Ac,
+    Nc = length(substances), 
     model,
-    ninports,  
-    Volume, 
     name,
-    guesses 
    )
   
 
     
 #Constants
-gramsToKilograms = 10^(-3)
-Rᵍ = 8.314 # J/(mol K)
-Nri = Reaction.Nri
-
-#Properties of individual substances
-properties = Dict(subs => load_component_properties(subs) for subs in substances_user)
-MWs = [properties[subs]["MW"] for subs in substances_user]
+g = 9.81 # m/s²
 
 
-pars = @parameters begin 
-V = Volume, [description = "Drum volume (m3)"]
-end
+pars = []
 
-#Ports creation
- 
-InPorts = [matcon(; Nc = Nc, name = Symbol("InPorts$i")) for i in 1:ninports]
 
-OutPorts = @named begin
-    Out = matcon(; Nc = Nc) 
-end   
+Ports = @named begin
+    In = matcon(; Nc = Nc)
+    Outᴸ = matcon(; Nc = Nc)
+    Outᵍ = matcon(; Nc = Nc)
+    #EnergyCon = thermal_energy_connector()
+end    
 
 vars = @variables begin
-    M(t)[1:3], [description = "Mass holdup in the tank (kg)"]
-    N(t)[1:3], [description = "Total molar holdup in the tank (kmol)"]
-    V(t)[1:3], [description = "Volume holdup in the tank (m³)", guess = guesses[:V]]
-    (Nᵢ(t))[1:Nc], [description = "Molar holdup of each component in the tank (mol)"]
-    (Cᵢ(t))[1:Nc], [description = "Concentration of each component in the tank (mol/m³)", guess = guesses[:Cᵢ]]
-    ρ(t), [description = "Molar Density of the fluid in the tank (mol/m³)"]
-    ρʷ(t), [description = "Mass Density of the fluid in the tank (kg/m³)"]
-    MW(t), [description = "Molecular weight of fluid in the tank (kg/kmol)"]  
-    T(t), [description = "Temperature of vessel contents (K)"]  
-    P_out(t), [description = "Pressure at the outlet stream level (Pa)"]
-    H(t), [description = "Enthalpy holdup of the fluid in the tank (J)"] 
-    #S(t), [description = "Entropy holdup of the fluid in the tank (J/K)"]
-    F_out(t), [description = "Outlet molar flow rate (mol/s)", guess = guesses[:F_out]] 
-    Fʷ_out(t), [description = "Outlet molar flow rate (mol/s)", guess = guesses[:Fʷ_out]]
-    Q_out(t), [description = "Outlet volumetric flow rate (m³/s)"] # DoF
-    height(t), [description = "Liquid level in vessel measured from bottom of the tank (m)"]
-    P_atm(t), [description = "Tank pressure (Pa)"] # Equal to inlet pressures.
-    Q̇(t), [description = "Heat transfer rate (J/s)"] # Potential DoF
-    (r(t))[1:Nri], [description = "Rate of each reaction for each component (mol/s/m³)"]
-    (R(t))[1:Nc], [description = "Overall reaction rate (mol/s/m³)"]
+    (Nᵢᴸ(t))[1:Nc], [description = "Molar holdup of each component in liquid phase (mol)"]
+    (Nᵢᵍ(t))[1:Nc], [description = "Molar holdup of each component in gas phase (mol)"]
+    (xᵢ(t))[1:Nc], [description = "Molar fraction in liquid phase (-)"]
+    (yᵢ(t))[1:Nc], [description = "Molar fraction in gas phase (-)"]
+    (Nᵢ(t))[1:Nc], [description = "Molar holdup of each component (mol)"]
+    (ϕᵢᴸ(t))[1:Nc], [description = "Fugacity coefficient in liquid phase"]
+    (ϕᵢᵍ(t))[1:Nc], [description = "Fugacity coefficient in liquid phase"]
+    Vᴸ(t), [description = "Volume of the liquid phase (m³)"]
+    Vᵍ(t), [description = "Volume of the gas phase (m³)"]
+    ρᴸ(t), [description = "Molar Density of gas phase (mol/m³)"]
+    ρᵍ(t), [description = "Molar Density of liquid phase (mol/m³)"]
+    Nᴸ(t), [description = "Total molar holdup in the liquid phase (mol)"] 
+    Nᵍ(t), [description = "Total molar holdup in the gas phase (mol)"] 
 
-    (Cᵢ_in(t))[1:Nc, 1:ninports], [description = "Inlet concentration of each component (mol/m³)"] # DoF through inlet stream
-    (F_in(t))[1:ninports], [description = "Inlet molar flow rate (mol/s)"] # DoF through inlet stream
-    (Q_in(t))[1:ninports], [description = "Inlet volumetric flow rate(s) (m³/s)"]
-    (T_in(t))[1:ninports], [description = "Inlet temperature (K)"] # DoF through inlet stream
-    (h_in(t))[1:ninports], [description = "Inlet specific enthalpy (J/mol)"]
-    (ρ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
-    (ρʷ_in(t))[1:ninports], [description = "Inlet density (mol/m³)"]
+    T(t), [description = "Drum temperature (K)"]  
+    P(t), [description = "Drum pressue (Pa)"]
+    U(t), [description = "Total internal energy holdup in the tank (L + G) (J)"]
+    V(t), [description = "Total volume in the tank (L + G) (m³)"]
+
+    hᴸ_outflow(t), [description = "Outflow Enthalpy of liquid phase (J/mol)"]
+    hᵍ_outflow(t), [description = "Outflow Enthalpy of liquid phase (J/mol)"]
+    Fᴸ_outflow(t), [description = "Outlet molar flow rate of liquid phase (mol/s)"] 
+    Fᵍ_outflow(t), [description = "Outlet molar flow rate of gas phase (mol/s)"] 
+    height(t), [description = "Liquid level in vessel measured from bottom of the tank (m)"]
+    Q̇(t), [description = "Heat transfer rate (J/s)"]
+
+
+    _0_Nᴸ(t), [description = "Condition for all gas phase"]
+    _0_Nᵍ(t), [description = "Condition for all liquid phase"]
 
 end
 
     
+#Conservation equations
 
-#Reaction equations
-reaction_rate = [r[i] ~ Af_r[i]*exp(-Ef_r[i]/(Rᵍ*T))*prod(scalarize((Cᵢ[:].^Do_r[i, :]))) for i in 1:Nri] # If there's an inert, the order is just zero, but it has to be written
-overall_reaction_rate = [R[i] ~ sum(scalarize(r[:].*Coef_Cr[:, i])) for i in 1:Nc]  # If there's an inert, the coefficient is just zero, but it has to be written
+liquid_gas_holdups = [Nᴸ ~ sum(collect(Nᵢᴸ)), Nᵍ ~ sum(collect(Nᵢᵍ))]
 
-   
-#Inlet connector variables's equations
-atm_pressure = [P_atm ~ InPorts[1].P]
-mass_density_eqs = [ρʷ_in[j] ~ InPorts[j].ρʷ for j in 1:ninports]
-molar_density_eqs = [ρ_in[j] ~ InPorts[j].ρ for j in 1:ninports]
-inletenthalpy = [h_in[j] ~ InPorts[j].H for j in 1:ninports]
-inletconcentrations = [Cᵢ_in[i, j] ~ InPorts[j].z₁[i]*ρ_in[j] for j in 1:ninports for i in 1:Nc]
-inlettemperature_eqs = [T_in[j] ~ InPorts[j].T for j in 1:ninports]
-inletmolarflow_eqs = [F_in[j] ~ InPorts[j].F for j in 1:ninports]
-volumetricflow_eqs = [Q_in[j] ~ F_in[j] / ρ_in[j] for j in 1:ninports]
+xy_fractions = [scalarize(xᵢ.*Nᴸ .~ Nᵢᴸ)...; scalarize(yᵢ.*Nᵍ .~ Nᵢᵍ)]
+
+component_holdups = [Nᵢ[i] ~ Nᵢᴸ[i] + Nᵢᵍ[i] for i in 1:Nc]
 
 
-#Outlet connector equations:
-out_conn = [Out.P ~ P_out
-            Out.T ~ T
-            Out.F ~ F_out
-            Out.Fʷ ~ Fʷ_out
-            Out.H ~ H/N
-            Out.S ~ 0.0
-            Out.ρʷ ~ ρʷ
-            Out.ρ ~ ρ
-            scalarize(Out.z₁ .~ Nᵢ/N)...
-            Out.MW[1] ~ MW
+component_balance = [D(Nᵢ[i]) ~ In.F*In.z₁[i] - Fᴸ_outflow*xᵢ[i] - Fᵍ_outflow*yᵢ[i] for i in 1:Nc]
+
+energy_balance = [D(U) ~ In.F*In.H - Fᴸ_outflow*hᴸ_outflow - Fᵍ_outflow*hᵍ_outflow + Q̇]
+
+heat_source_equation = [Q̇ ~ 0.0]
+
+#Thermodynamic constraints
+
+internal_energy = [U + P*V ~ Nᴸ*hᴸ_outflow + Nᵍ*hᵍ_outflow] 
+
+total_volume = [V ~ Vᴸ + Vᵍ] #That should not be fixed a priori. One may want to have a perfect pressure control vessel. 
+
+liquid_gas_enthalpy = [hᴸ_outflow ~ enthalpy(model, P, T, xᵢ, phase = "liquid")
+ hᵍ_outflow ~ enthalpy(model, P, T, yᵢ, phase = "vapor")]
+
+liquid_gas_densities = [ρᴸ ~ molar_density(model, P, T, Nᵢᴸ, phase = "liquid")
+ ρᵍ ~ molar_density(model, P, T, Nᵢᵍ, phase = "vapor")]
+
+liquid_volume = [ρᴸ*Vᴸ ~ Nᴸ]
+
+gas_volume = [ρᵍ*Vᵍ ~ Nᵍ]
+
+fugacities_g = [ϕᵢᵍ[i] ~ fugacity_coefficient(model, P, T, Nᵢᵍ, phase = "vapor")[i] for i in 1:Nc if ~non_condensables[i] & ~non_volatiles[i]]
+
+fugacities_l = [ϕᵢᴸ[i] ~ fugacity_coefficient(model, P, T, Nᵢᴸ, phase = "liquid")[i] for i in 1:Nc if ~non_condensables[i] & ~non_volatiles[i]]
+
+non_smoothness = [_0_Nᵍ ~ Nᵍ/(Nᵍ + Nᴸ)
+ _0_Nᴸ ~ Nᵍ/(Nᵍ + Nᴸ) - 1.0
+ 0.0 ~ _0_Nᵍ + _0_Nᴸ + sum(collect(xᵢ)) - sum(collect(yᵢ)) - min(_0_Nᵍ, _0_Nᴸ, sum(collect(xᵢ)) - sum(collect(yᵢ))) - max(_0_Nᵍ, _0_Nᴸ, sum(collect(xᵢ)) - sum(collect(yᵢ))) 
+ ] #Non-smooth formulation 
+
+ equilibrium = [ϕᵢᵍ[i].*yᵢ[i] .~ ϕᵢᴸ[i].*xᵢ[i] for i in 1:Nc if ~non_condensables[i] & ~non_volatiles[i]]
+
+ # Out connectors
+
+ out_conn_L = [Outᴸ.P ~ P + ρᴸ*g*Ac/Vᴸ
+ Outᴸ.T ~ T
+ Outᴸ.F ~ Fᴸ_outflow
+ Outᴸ.H ~ hᴸ_outflow
+ scalarize(Outᴸ.z₁ .~ xᵢ)...
+ scalarize(Outᴸ.z₂ .~ 0.0)...
+ scalarize(Outᴸ.z₃ .~ xᵢ)...
+ Outᴸ.α_g ~ 0.0
 ]
 
-if phase == :liquid
-out_conn_phases = [
-                scalarize(Out.z₂ .~ 0.0)...
-                scalarize(Out.z₃ .~ Nᵢ/N)...
-                Out.MW[2] ~  0.0
-                Out.MW[3] ~ MW
-                Out.α_g ~ 0.0]
-
-elseif phase == :vapor
-    out_conn_phases = [
-    scalarize(Out.z₂ .~ Nᵢ/N)...
-    scalarize(Out.z₃ .~ 0.0)...
-    Out.MW[2] ~ MW
-    Out.MW[3] ~ 0.0
-    Out.α_g ~ 1.0]
-end
+out_conn_g = [Outᵍ.P ~ P
+Outᵍ.T ~ T
+Outᵍ.F ~ Fᵍ_outflow
+Outᵍ.H ~ hᵍ_outflow
+scalarize(Outᵍ.z₁ .~ yᵢ)...
+scalarize(Outᵍ.z₂ .~ yᵢ)...
+scalarize(Outᵍ.z₃ .~ 0.0)...
+Outᵍ.α_g ~ 1.0
+]
 
 
-#balances
-#mass_balance = [D(M) ~ sum(scalarize(Q_in.*ρʷ_in)) - Q_out*ρʷ]
-component_balance = [D(Nᵢ[i]) ~ sum(scalarize(Q_in[:].*Cᵢ_in[i, :])) - Q_out*Cᵢ[i] + R[i]*V for i in 1:Nc] #Neglectable loss to vapor phase head space
-energy_balance = [D(H) ~ sum(scalarize(Q_in.*ρ_in.*h_in)) - Q_out*ρ*H/N + Q̇]
-jacket_energy_balance = [Q̇ ~ -2.27*4184.0*(T - 288.7)*(1.0 - exp(-8440.26/(2.27*4184)))] 
-mass_volume_eq = [ρʷ*V ~ M, ρ*V ~ N] #Modified to calculate volume from N
-mol_holdup = [N ~ sum(collect(Nᵢ))]
-mol_to_concentration = [scalarize(Nᵢ .~ Cᵢ*V)...]
-height_to_volume = [height*A ~ V]
-volumetricflow_to_molarflow = [Q_out ~ F_out/ρ, Q_out ~ sum(scalarize(Q_in))] # Modified
-volumetricflow_to_massflow = [Q_out ~ Fʷ_out/ρʷ]
-  
-#Thermodynamic properties (outlet)
-pressure_out = [phase == :liquid ? P_out ~ P_atm : P_out ~ P_atm] #Estimation considering static pressure (May be off as tank is agitated and not static)
-density_eqs = [ρ ~ molar_density(model, P_out, T, Nᵢ, phase = "unknown")] 
-mass_density = [ρʷ ~ ρ*MW]
-globalEnthalpy_eq = [H ~ enthalpy(model, P_out, T, Nᵢ, phase = "unknown") + sum(scalarize(ΔH₀f.*Nᵢ))]
-molar_mass = [MW ~ sum(scalarize(MWs.*Nᵢ))/N*gramsToKilograms]
+
+eqs = [liquid_gas_holdups...; xy_fractions...; component_holdups...; component_balance...; energy_balance...; 
+heat_source_equation...; internal_energy...; total_volume...; liquid_gas_enthalpy...; liquid_gas_densities...; liquid_volume...;
+gas_volume...; fugacities_g...;  fugacities_l...; non_smoothness...; equilibrium...; out_conn_L...; out_conn_g...]
 
 
-eqs = [reaction_rate...; overall_reaction_rate...; atm_pressure...; mass_density_eqs...; molar_density_eqs...; inletenthalpy...; inletconcentrations...; inlettemperature_eqs...; inletmolarflow_eqs...; volumetricflow_eqs...; out_conn...;
-out_conn_phases...; component_balance...; energy_balance...; jacket_energy_balance...; mass_volume_eq...; mol_holdup...; mol_to_concentration...; height_to_volume...; volumetricflow_to_molarflow...; volumetricflow_to_massflow...;
-pressure_out...; density_eqs...; mass_density...; globalEnthalpy_eq...; molar_mass...]
-
-
-ODESystem([eqs...;], t, collect(Iterators.flatten(vars)),
- collect(Iterators.flatten(pars)); name, systems = [InPorts...; OutPorts])
+ODESystem([eqs...;], t, collect(Iterators.flatten(vars)), collect(Iterators.flatten(pars)); name, systems = [Ports...])
 
 end
 
+export ThreePortDrum
