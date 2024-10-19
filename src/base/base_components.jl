@@ -41,14 +41,14 @@
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems=mcons)
 end
 
-@component function MaterialConnector(ms::MaterialSource;name)
+@connector function MaterialConnector(ms::MaterialSource;name)
     vars = @variables begin
-        T(t),               [description="temperature"]                     #, unit=u"K"]
-        ϱ(t),               [description="density"]                         #, unit=u"mol m^-3"]
+        T(t),               [description="temperature", output=true]        #, unit=u"K"]
+        ϱ(t),               [description="density", output=true]            #, unit=u"mol m^-3"]
         p(t),               [description="pressure"]                        #, unit=u"Pa"]
-        h(t),               [description="molar enthalpy", connect=Stream]  #, unit=u"J mol^-1"]
-        s(t),               [description="molar entropy", connect=Stream]   #, unit=u"J mol^-1 K^-1"]
-        xᵢ(t)[1:ms.N_c],    [description="mole fractions", connect=Stream]  #, unit=u"mol mol^-1"]
+        h(t),               [description="molar enthalpy", output=true]     #, unit=u"J mol^-1"]
+        s(t),               [description="molar entropy", output=true]      #, unit=u"J mol^-1 K^-1"]
+        xᵢ(t)[1:ms.N_c],    [description="mole fractions", output=true]     #, unit=u"mol mol^-1"]
         n(t),               [description="total molar flow", connect=Flow]  #, unit=u"mol s^-1"]
     end
 

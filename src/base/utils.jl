@@ -27,15 +27,3 @@
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems=[c])
 end
-
-function mconnect(c1,c2)
-    Equation[
-        c1.T ~ c2.T,
-        c1.ϱ ~ c2.ϱ,
-        c1.p ~ c2.p,
-        c1.h ~ c2.h,
-        c1.s ~ c2.s,
-        scalarize(c1.xᵢ .~ c2.xᵢ)...,
-        0.0 ~ c1.n + c2.n,
-    ]
-end

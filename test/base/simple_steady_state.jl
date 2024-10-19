@@ -25,8 +25,8 @@ matsource = PS.MaterialSource("helium";
 @named outlet = PS.Port(matsource)
 
 con_eqs_comp = [
-    PS.mconnect(inlet.c, comp.cv.c1)...,
-    PS.mconnect(comp.cv.c2, outlet.c)...
+    connect(inlet.c, comp.cv.c1),
+    connect(comp.cv.c2, outlet.c)
 ]
 @named compressor_ = ODESystem(con_eqs_comp, t, [], []; systems=[inlet,comp,outlet])
 
@@ -66,18 +66,18 @@ systems = [comp_12,heat_22⁺,heat_2⁺3,turb_34,heat_44⁺,heat_4⁺1]
 streams = [inlet,s2,s2⁺,s3,s4,s4⁺,outlet]
 
 con_eqs = vcat(
-    PS.mconnect(inlet.c, comp_12.cv.c1)...,
-    PS.mconnect(comp_12.cv.c2, s2.c1)...,
-    PS.mconnect(s2.c2, heat_22⁺.cv.c1)...,
-    PS.mconnect(heat_22⁺.cv.c2, s2⁺.c1)...,
-    PS.mconnect(s2⁺.c2, heat_2⁺3.cv.c1)...,
-    PS.mconnect(heat_2⁺3.cv.c2, s3.c1)...,
-    PS.mconnect(s3.c2, turb_34.cv.c1)...,
-    PS.mconnect(turb_34.cv.c2, s4.c1)...,
-    PS.mconnect(s4.c2, heat_44⁺.cv.c1)...,
-    PS.mconnect(heat_44⁺.cv.c2, s4⁺.c1)...,
-    PS.mconnect(s4⁺.c2, heat_4⁺1.cv.c1)...,
-    PS.mconnect(heat_4⁺1.cv.c2, outlet.c)...
+    connect(inlet.c, comp_12.cv.c1),
+    connect(comp_12.cv.c2, s2.c1),
+    connect(s2.c2, heat_22⁺.cv.c1),
+    connect(heat_22⁺.cv.c2, s2⁺.c1),
+    connect(s2⁺.c2, heat_2⁺3.cv.c1),
+    connect(heat_2⁺3.cv.c2, s3.c1),
+    connect(s3.c2, turb_34.cv.c1),
+    connect(turb_34.cv.c2, s4.c1),
+    connect(s4.c2, heat_44⁺.cv.c1),
+    connect(heat_44⁺.cv.c2, s4⁺.c1),
+    connect(s4⁺.c2, heat_4⁺1.cv.c1),
+    connect(heat_4⁺1.cv.c2, outlet.c)
 )
 append!(con_eqs,[0.0 ~ heat_2⁺3.Q + heat_4⁺1.Q])
 
