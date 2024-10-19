@@ -1,25 +1,26 @@
 @component function SimpleAdiabaticCompressor(ms::MaterialSource; name)
 
     # Subsystems
-    @named cv = SimpleControlVolume(ms;N_states=2,N_works=1)
-    sys = [cv]
+    @named cv = SimpleControlVolume(ms;N_mcons=2,N_works=1)
 
     # Variables
     vars = @variables begin
-        T2_s(t),            [description="temperature", output=true]
-        ϱ2_s(t),            [description="density", output=true]
+        W(t),               [description="power"]       #, unit=u"J s^1"]
+        T2_s(t),            [description="temperature"] #, unit=u"K"]
+        ϱ2_s(t),            [description="density"]     #, unit=u"mol m^-3"]
     end
 
     pars = @parameters begin
-        ηᴱ,                 [description="efficiency", output=true]
+        ηᴱ = 1.0,           [description="efficiency"]
     end
 
     # Equations
     eqs = [
-        ms.VT_entropy(cv.f1.s.ϱ,cv.f1.s.T,cv.f1.c.xᵢ) ~ ms.VT_entropy(cv.f2.s.ϱ,cv.f2.s.T,cv.f2.c.xᵢ)
-        ϱ2_s ~ ms.molar_density(cv.f2.c.p,T2_s,cv.f2.c.xᵢ)
-        ηᴱ ~ cv.Ws[1] / (ms.VT_enthalpy(ϱ2_s,T2_s,cv.f2.c.xᵢ) - ms.VT_enthalpy(cv.f1.s.ϱ,cv.f1.s.T,cv.f1.c.xᵢ))
+        cv.w1.W ~ W,
+        ms.VT_entropy(cv.c1.ϱ,cv.c1.T,cv.c1.xᵢ) ~ ms.VT_entropy(cv.c2.ϱ,cv.c2.T,cv.c2.xᵢ),
+        ϱ2_s ~ ms.molar_density(cv.c2.p,T2_s,cv.c2.xᵢ),
+        ηᴱ ~ cv.w1.W / ((ms.VT_enthalpy(ϱ2_s,T2_s,cv.c2.xᵢ) - cv.c1.h)*cv.c1.n),
     ]
 
-    return ODESystem(eqs, t, vars, pars; name, systems=sys)
+    return ODESystem(eqs, t, vars, pars; name, systems=[cv])
 end
