@@ -13,4 +13,7 @@ include("base/utils.jl")
 include("fluid_handling/compressors.jl")
 include("fluid_handling/heat_exchangers.jl")
 
+# Reactors
+include("reactors/CSTR.jl")
+
 end

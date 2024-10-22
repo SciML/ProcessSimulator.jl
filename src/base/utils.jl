@@ -13,9 +13,8 @@
     eqs = Equation[
         # EOS 
         ϱ ~ ms.molar_density(p,T,xᵢ;phase=phase),
-        1.0 ~ sum([xᵢ for xᵢ in xᵢ]),
+        1.0 ~ sum(collect(xᵢ)),
         c.h ~ ms.VT_enthalpy(ϱ,T,xᵢ),
-        c.s ~ ms.VT_entropy(ϱ,T,xᵢ),
         # Connector
         T ~ c.T,
         ϱ ~ c.ϱ,

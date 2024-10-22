@@ -9,7 +9,6 @@
         ϱ(t),               [description="density"]             #, unit=u"mol m^-3"]
         p(t),               [description="pressure"]            #, unit=u"Pa"]
         h(t),               [description="molar enthalpy"]      #, unit=u"J mol^-1"]
-        s(t),               [description="molar entropy"]       #, unit=u"J mol^-1 K^-1"]
         n(t),               [description="molar flow "]         #, unit=u"mol s^-1"]
         xᵢ(t)[1:ms.N_c],    [description="mole fractions"]      #, unit=u"mol mol^-1"]
     end
@@ -18,14 +17,12 @@
         # EOS 
         ϱ ~ ms.molar_density(p,T,xᵢ;phase=phase),
         h ~ ms.VT_enthalpy(ϱ,T,xᵢ),
-        s ~ ms.VT_entropy(ϱ,T,xᵢ),
-        1.0 ~ sum([xᵢ for xᵢ in xᵢ]),
+        1.0 ~ sum(collect(xᵢ)),
         # Connector "1"
         T ~ c1.T,
         ϱ ~ c1.ϱ,
         p ~ c1.p,
         h ~ c1.h,
-        s ~ c1.s,
         n ~ c1.n,
         scalarize(xᵢ .~ c1.xᵢ)...,
         # Connector "2"
@@ -33,7 +30,6 @@
         ϱ ~ c2.ϱ,
         p ~ c2.p,
         h ~ c2.h,
-        s ~ c2.s,
         n ~ -c2.n,
         scalarize(xᵢ .~ c2.xᵢ)...,   
     ]
@@ -47,7 +43,6 @@ end
         ϱ(t),               [description="density", output=true]            #, unit=u"mol m^-3"]
         p(t),               [description="pressure"]                        #, unit=u"Pa"]
         h(t),               [description="molar enthalpy", output=true]     #, unit=u"J mol^-1"]
-        s(t),               [description="molar entropy", output=true]      #, unit=u"J mol^-1 K^-1"]
         xᵢ(t)[1:ms.N_c],    [description="mole fractions", output=true]     #, unit=u"mol mol^-1"]
         n(t),               [description="total molar flow", connect=Flow]  #, unit=u"mol s^-1"]
     end
@@ -102,39 +97,49 @@ end
                                     N_mcons,
                                     N_heats=0,
                                     N_works=0,
-                                    N_ph=1, phases=repeat(["unknown"],N_ph),
+                                    phases=["unknown"],
                                     name)
     # Init 
+    N_ph = length(phases)
     mcons = [MaterialConnector(ms;name=Symbol("c$i")) for i in 1:N_mcons]
     works = [WorkConnector(name=Symbol("w$i")) for i in 1:N_works]
     heats = [HeatConnector(name=Symbol("q$i")) for i in 1:N_heats]
 
     vars = @variables begin
-        T(t),                       [description="temperature", bounds=(0,Inf)]        #, unit=u"K"]
-        p(t),                       [description="pressure", bounds=(0,Inf)]           #, unit=u"Pa"]
-        ϱ(t)[1:N_ph],               [description="density", bounds=(0,Inf)]            #, unit=u"mol m^-3"]
-        (nᵢ(t))[1:N_ph,1:ms.N_c],   [description="molar holdup", bounds=(0,Inf)]       #, unit=u"mol"]
-        n(t),                       [description="total molar holdup", bounds=(0,Inf)] #, unit=u"mol"]
-        U(t),                       [description="internal energy"]                    #, unit=u"J"]
-        ΔH(t),                      [description="enthalpy difference inlets/outlets"] #, unit=u"J/s"]
-        ΔE(t),                      [description="added/removed heat or work"]         #, unit=u"J/s"]
+        T(t),                       [description="temperature", bounds=(0,Inf)]         #, unit=u"K"]
+        p(t),                       [description="pressure", bounds=(0,Inf)]            #, unit=u"Pa"]
+        ϱ(t)[1:N_ph],               [description="density", bounds=(0,Inf)]             #, unit=u"mol m^-3"]
+        (nᵢ(t))[1:N_ph,1:ms.N_c],   [description="molar holdup", bounds=(0,Inf)]        #, unit=u"mol"]
+        (xᵢ(t))[1:N_ph,1:ms.N_c],   [description="mole fractions", bounds=(0,1)]        #, unit=u"mol mol^-1"]
+        n(t),                       [description="total molar holdup", bounds=(0,Inf)]  #, unit=u"mol"]
+        U(t),                       [description="internal energy"]                     #, unit=u"J"]
+        ΔH(t),                      [description="enthalpy difference inlets/outlets"]  #, unit=u"J/s"]
+        ΔE(t),                      [description="added/removed heat or work"]          #, unit=u"J/s"]
     end
+    !isempty(ms.reaction) ? append!(vars, @variables begin
+        ΔnR(t)[1:ms.N_c],           [description="molar holdup change by reaction"]     #, unit=u"mol"])
+        ΔHᵣ(t),                     [description="enthalpy of reaction"]                #, unit=u"J/s"]
+        τ(t),                       [description="residence time (m/Δm_dot)"]           #, unit=u"s"]
+    end) : nothing
 
     pars = @parameters begin
         V,                          [description="volume", bounds=(0,Inf)]             #, unit=u"m^3"]
     end
 
     eqs = [
-        ΔH ~ sum([c.h*c.n for c in mcons])
-        ΔE ~ (isempty(heats) ? 0.0 : sum([q.Q for q in heats])) + (isempty(works) ? 0.0 : sum([w.W for w in works]))
+        ΔH ~ sum([c.h*c.n for c in mcons]),
+        ΔE ~ (isempty(heats) ? 0.0 : sum([q.Q for q in heats])) + (isempty(works) ? 0.0 : sum([w.W for w in works])),
         # Energy balance
-        D(U) ~ ΔH + ΔE + ΔHᵣ
+        D(U) ~ ΔH + ΔE + (isempty(ms.reaction) ? 0.0 : ΔHᵣ),
         # Mole balance
-        [D(sum(nᵢ[:,j])) ~ sum([c.xᵢ[j]*c.n for c in mcons]) for j in 1:ms.N_c][:]
-        n ~ sum(nᵢ)
+        [D(sum(collect(nᵢ[:,i]))) ~ 
+            sum([c.xᵢ[i]*c.n for c in mcons])*(isempty(ms.reaction) ? 1.0 : τ) + 
+            (isempty(ms.reaction) ? 0.0 : ΔnR[i]) for i in 1:ms.N_c]...,
+        n ~ sum(collect([nᵢ...])),
+        [xᵢ[j,i] ~ nᵢ[j,i]/sum(collect(nᵢ[j,:])) for i in 1:ms.N_c, j in 1:N_ph]...,
         # Thermodynamic system properties
-        [ϱ[i] ~ ms.molar_density(p,T,nᵢ[i,:];phase=phases[i]) for i in 1:N_ph]
-        U ~ sum([ms.VT_internal_energy(ϱ[i],T,nᵢ[i,:]) for i in 1:N_ph])
+        [ϱ[j] ~ ms.molar_density(p,T,collect(xᵢ[j,:]);phase=phases[j]) for j in 1:N_ph]...,
+        U ~ sum([ms.VT_internal_energy(ϱ[j],T,collect(nᵢ[j,:])) for j in 1:N_ph])
     ]
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems=[mcons...,works...,heats...])
