@@ -1,6 +1,5 @@
 using ProcessSimulator
 using ModelingToolkit, OrdinaryDiffEq, Clapeyron
-#import ModelingToolkit: get_unknowns, get_observed, get_defaults, get_eqs, scalarize
 using ModelingToolkit: t_nounits as t, D_nounits as D, scalarize
 using ProcessSimulator: matcon
 
@@ -38,27 +37,10 @@ Do_r = [0.0 0.0 0.0 1.0], name = "Propyleneglycol synthesis")
     )
 
 
-for eq in equations(R_101)
-    println(eq)
-end
-
-for eq in unknowns(R_101)
-    println(eq)
-end
-
-
-
 cons = [connect(source.Out, R_101.In)]
 
 flowsheet = ODESystem(cons, t; name = :mycon, systems = [R_101, source])   
 sistema = structural_simplify(flowsheet)
-for eq in equations(sistema)
-    println(eq)
-end
-for u in unknowns(sistema)
-    println(u)
-end
-alg_equations(sistema)
 
 u0 = [sistema.R_101.Nᵢ[1] => 1.9*57252.65, sistema.R_101.Nᵢ[2] => 1e-10,
  sistema.R_101.Nᵢ[3] => 1e-10, sistema.R_101.Nᵢ[4] => 1e-10,

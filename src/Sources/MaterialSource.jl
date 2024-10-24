@@ -90,7 +90,7 @@
 
     #Phase check
     #Tci, Pci, Vc = crit_mix(model, zₜ_user) #Critical point of the mixture (Removed as too time consuming to calculate)
-    Tci = minimum(Tcs)
+    Tci = sum(Tcs.*zₜ_user)
     Pci = 0.0
     Pdew, Vᵍdew, Vˡdew, xdew = dew_pressure(model, T_user, zₜ_user)
     Pbuble, Vᵍbuble, Vˡbuble, xbuble = bubble_pressure(model, T_user, zₜ_user)

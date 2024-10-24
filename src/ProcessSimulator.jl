@@ -14,6 +14,8 @@ include("Reactors/ReactionManager/KineticReaction.jl")
 
 include("Reactors/CSTR.jl")
 
+include("Valve/Valves.jl")
+
 include("HeatExchange/Jacket.jl")
 
 include("Separation/Flash.jl")
