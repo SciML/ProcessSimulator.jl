@@ -1,0 +1,6 @@
+{
+    "github.copilot.enable": {
+        "quarto": true,
+        "julia": true
+    }
+}
