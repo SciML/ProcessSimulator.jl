@@ -98,6 +98,7 @@ end
                                     N_heats=0,
                                     N_works=0,
                                     phases=["unknown"],
+                                    reactive=false,
                                     name)
     # Init 
     N_ph = length(phases)
@@ -116,10 +117,9 @@ end
         ΔH(t),                      [description="enthalpy difference inlets/outlets"]  #, unit=u"J/s"]
         ΔE(t),                      [description="added/removed heat or work"]          #, unit=u"J/s"]
     end
-    !isempty(ms.reaction) ? append!(vars, @variables begin
+    reactive ? append!(vars, @variables begin
         ΔnR(t)[1:ms.N_c],           [description="molar holdup change by reaction"]     #, unit=u"mol"])
         ΔHᵣ(t),                     [description="enthalpy of reaction"]                #, unit=u"J/s"]
-        τ(t),                       [description="residence time (m/Δm_dot)"]           #, unit=u"s"]
     end) : nothing
 
     pars = @parameters begin
@@ -130,16 +130,15 @@ end
         ΔH ~ sum([c.h*c.n for c in mcons]),
         ΔE ~ (isempty(heats) ? 0.0 : sum([q.Q for q in heats])) + (isempty(works) ? 0.0 : sum([w.W for w in works])),
         # Energy balance
-        D(U) ~ ΔH + ΔE + (isempty(ms.reaction) ? 0.0 : ΔHᵣ),
+        D(U) ~ ΔH + ΔE + (reactive ? ΔHᵣ : 0.0),
         # Mole balance
-        [D(sum(collect(nᵢ[:,i]))) ~ 
-            sum([c.xᵢ[i]*c.n for c in mcons])*(isempty(ms.reaction) ? 1.0 : τ) + 
-            (isempty(ms.reaction) ? 0.0 : ΔnR[i]) for i in 1:ms.N_c]...,
+        [D(sum(collect(nᵢ[:,i]))) ~ sum([c.xᵢ[i]*c.n for c in mcons]) + 
+            (reactive ? ΔnR[i] : 0.0) for i in 1:ms.N_c]...,
         n ~ sum(collect([nᵢ...])),
         [xᵢ[j,i] ~ nᵢ[j,i]/sum(collect(nᵢ[j,:])) for i in 1:ms.N_c, j in 1:N_ph]...,
         # Thermodynamic system properties
         [ϱ[j] ~ ms.molar_density(p,T,collect(xᵢ[j,:]);phase=phases[j]) for j in 1:N_ph]...,
-        U ~ sum([ms.VT_internal_energy(ϱ[j],T,collect(nᵢ[j,:])) for j in 1:N_ph])
+        U ~ sum([ms.VT_internal_energy(ϱ[j],T,collect(xᵢ[j,:]))*sum(collect(nᵢ[j,:])) for j in 1:N_ph])
     ]
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems=[mcons...,works...,heats...])
