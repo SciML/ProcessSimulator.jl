@@ -116,15 +116,12 @@ end
         U(t),                       [description="internal energy"]                     #, unit=u"J"]
         ΔH(t),                      [description="enthalpy difference inlets/outlets"]  #, unit=u"J/s"]
         ΔE(t),                      [description="added/removed heat or work"]          #, unit=u"J/s"]
+        V(t),                       [description="volume", bounds=(0,Inf)]             #, unit=u"m^3"]
     end
     reactive ? append!(vars, @variables begin
         ΔnR(t)[1:ms.N_c],           [description="molar holdup change by reaction"]     #, unit=u"mol"])
         ΔHᵣ(t),                     [description="enthalpy of reaction"]                #, unit=u"J/s"]
     end) : nothing
-
-    pars = @parameters begin
-        V,                          [description="volume", bounds=(0,Inf)]             #, unit=u"m^3"]
-    end
 
     eqs = [
         ΔH ~ sum([c.h*c.n for c in mcons]),
@@ -138,8 +135,9 @@ end
         [xᵢ[j,i] ~ nᵢ[j,i]/sum(collect(nᵢ[j,:])) for i in 1:ms.N_c, j in 1:N_ph]...,
         # Thermodynamic system properties
         [ϱ[j] ~ ms.molar_density(p,T,collect(xᵢ[j,:]);phase=phases[j]) for j in 1:N_ph]...,
-        U ~ sum([ms.VT_internal_energy(ϱ[j],T,collect(xᵢ[j,:]))*sum(collect(nᵢ[j,:])) for j in 1:N_ph])
+        U ~ sum([ms.VT_internal_energy(ϱ[j],T,collect(xᵢ[j,:]))*sum(collect(nᵢ[j,:])) for j in 1:N_ph]),
+        V ~ n / sum(collect(ϱ)),
     ]
 
-    return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems=[mcons...,works...,heats...])
+    return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems=[mcons...,works...,heats...])
 end
