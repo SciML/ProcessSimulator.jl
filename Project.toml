@@ -12,6 +12,7 @@ NonlinearSolve = "8913a72c-1f9b-4ce2-8d82-65094dcecaec"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 
 [compat]
+Clapeyron = "0.6"
 julia = "1.10"
 
 [extras]
