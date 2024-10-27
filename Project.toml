@@ -1,28 +1,19 @@
 name = "ProcessSimulator"
 uuid = "8886c03b-4dde-4be1-b6ee-87d056f985b8"
-authors = ["Avinash Subramanian"]
+authors = ["Chris Rackauckas", "Vinicius Viena Santana", "Sebastian Schmitt", "Andrés Riedemann", "Pierre Walker", "Avinash Subramanian"]
 version = "1.0.0-DEV"
 
 [deps]
-Clapeyron = "7c7805af-46cc-48c9-995b-ed0ed2dc909a"
-DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
-JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
-NonlinearSolve = "8913a72c-1f9b-4ce2-8d82-65094dcecaec"
-OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 
 [compat]
-Clapeyron = "0.6"
-DifferentialEquations = "7"
-JSON = "0.21"
 ModelingToolkit = "9"
-NonlinearSolve = "3"
-OrdinaryDiffEq = "6"
 julia = "1.10"
 
 [extras]
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 
 [targets]
-test = ["SafeTestsets","Test"]
+test = ["Test", "SafeTestsets", "DifferentialEquations"]

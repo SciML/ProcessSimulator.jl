@@ -1,26 +1,19 @@
 module ProcessSimulator
 
-
-using ModelingToolkit, JSON, OrdinaryDiffEq
+using ModelingToolkit
 using ModelingToolkit: t_nounits as t, D_nounits as D
-import ModelingToolkit: scalarize, equations, get_unknowns, defaults
-using Clapeyron
+using ModelingToolkit: scalarize, equations, get_unknowns
 
-include("utils.jl")
+# Base
+include("base/materials.jl")
+include("base/base_components.jl")
+include("base/utils.jl")
 
-include("Sources/MaterialSource.jl")
+# Fluid handling
+include("fluid_handling/compressors.jl")
+include("fluid_handling/heat_exchangers.jl")
 
-include("Reactors/ReactionManager/KineticReaction.jl")
-
-include("Reactors/CSTR.jl")
-
-include("Valve/Valves.jl")
-
-include("HeatExchange/Jacket.jl")
-
-include("Separation/Flash.jl")
-
-include("Sources/Sourceutils.jl")
-
+# Reactors
+include("reactors/CSTR.jl")
 
 end
