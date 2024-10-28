@@ -5,10 +5,10 @@ DocMeta.setdocmeta!(ProcessSimulator, :DocTestSetup, :(using ProcessSimulator); 
 
 makedocs(;
     modules=[ProcessSimulator],
-    authors="Avinash Subramanian",
+    authors="SciML",
     sitename="ProcessSimulator.jl",
     format=Documenter.HTML(;
-        canonical="https://avinashresearch1.github.io/ProcessSimulator.jl",
+        canonical="https://docs.sciml.ai/ProcessSimulator/stable/",
         edit_link="main",
         assets=String[],
     ),
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/avinashresearch1/ProcessSimulator.jl",
+    repo="github.com/SciML/ProcessSimulator.jl",
     devbranch="main",
 )
