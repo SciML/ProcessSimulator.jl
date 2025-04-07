@@ -1,35 +1,38 @@
-@component function CSTR(ms::MaterialSource;name, i_reacts=1:length(ms.reaction), flowtype="")
-    # Subsystems
-    @named cv = TPControlVolume(ms;N_mcons=2,N_heats=1,N_works=1,phases=["liquid"],reactive=true)
+@component function CSTR(ms::FluidMedium, Reactions::Union{AbstractReaction, Vector{AbstractReaction}}; name, N_heats::Int, N_works::Int, flowtype = "const. volume")
+    
+    # Subsystems - I think that CSTR would be an extension of the TPControlVolume instead of a composition
 
-    # Variables
-    vars = @variables begin
-        Q(t),                   [description="heat flux"] #, unit=u"J s^-1"]
-    end
+    N_Reactions = length(Reactions)
 
-    # Parameters
-    pars = @parameters begin
-        W=0.0,                  [description="work"]      #, unit=u"J s^1"]
-    end
+    @named cv = TwoPortControlVolume(ms;
+                    N_heats = N_heats, 
+                    N_works = N_works, 
+                    phases = ["liquid"],
+                    N_SinkSource = N_Reactions)
 
     # Equations
     eqs = Equation[
-        cv.w1.W ~ W,
-        cv.q1.Q ~ Q,
-        [cv.c2.xᵢ[i] ~ cv.xᵢ[1,i] for i in 1:ms.N_c-1]...,
-        cv.c2.p ~ cv.p,
-        cv.c2.T ~ cv.T,
-        # Change of moles by reaction
-        [cv.ΔnR[i] ~ reac.r(cv.p,cv.T,collect(cv.xᵢ[1,:]))*reac.ν[i]*cv.n for i in 1:ms.N_c, reac in ms.reaction[i_reacts]]...,
-        # Enthalpy of reaction
-        [cv.ΔHᵣ ~ reac.r(cv.p,cv.T,collect(cv.xᵢ[1,:]))*reac.Δhᵣ(cv.T)*cv.n for reac in ms.reaction[i_reacts]]...,
+        ## Connector equations
+        [c2.xᵢ[i] ~ xᵢ[1, i] for i in 1:ms.N_c - 1]...,
+        c2.p ~ p,
+        c2.T ~ T,
+
+        # Change of moles by each reaction
+        [ifelse(isa(Reactions, Vector), [rᵥ[j, :] .~ Rate(Reactions[i], V*xᵢ[1, :]..., T, V) for j in 1:N_reaction]..., rᵥ[1, :] .~ Rate(Reactions, V*xᵢ[1, :]..., T, V))]...,
+
+
     ]
+
     if flowtype == "const. mass"
-        push!(eqs,0.0 ~ cv.c1.n * sum(ms.Mw[i]*cv.c1.xᵢ[i] for i in 1:ms.N_c) + cv.c2.n * sum(ms.Mw[i]*cv.c2.xᵢ[i] for i in 1:ms.N_c))
+
+        push!(eqs, 0.0 ~ cv.c1.n * sum(ms.Mw[i]*cv.c1.xᵢ[i] for i in 1:ms.N_c) + cv.c2.n * sum(ms.Mw[i]*cv.c2.xᵢ[i] for i in 1:ms.N_c))
+
     elseif flowtype == "const. volume"
-        push!(eqs,D(cv.V) ~ 0.0)
+
+        push!(eqs, D(V) ~ 0.0)
+
     end
 
-    return ODESystem(eqs, t, vars, pars; name, systems=[cv])
+    return extend(ODESystem(eqs, t, vars, pars; name), cv)
 end
 

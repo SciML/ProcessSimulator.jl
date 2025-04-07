@@ -1,5 +1,5 @@
-@component function Port(ms;phase="unknown", name)
-    @named c = MaterialConnector(ms)
+#= @component function Port(ms;phase="unknown", name)
+    @named c = PhXConnector(ms)
 
     vars = @variables begin
         T(t),               [description="inlet temperature"]   #, unit=u"K"]
@@ -26,3 +26,4 @@
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems=[c])
 end
+ =#

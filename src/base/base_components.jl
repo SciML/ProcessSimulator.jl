@@ -1,58 +1,52 @@
+@component function ρTz_ThermodynamicState_(;medium, name)
 
-@component function MaterialStream(ms::MaterialSource;phase="unknown",name)
-    @named c1 = MaterialConnector(ms)
-    @named c2 = MaterialConnector(ms)
-    mcons = [c1,c2]
-    
+    pars = []
+
     vars = @variables begin
-        T(t),               [description="temperature"]         #, unit=u"K"]
-        ϱ(t),               [description="density"]             #, unit=u"mol m^-3"]
-        p(t),               [description="pressure"]            #, unit=u"Pa"]
-        h(t),               [description="molar enthalpy"]      #, unit=u"J mol^-1"]
-        n(t),               [description="molar flow "]         #, unit=u"mol s^-1"]
-        xᵢ(t)[1:ms.N_c],    [description="mole fractions"]      #, unit=u"mol mol^-1"]
+        ϕ(t)[1:medium.FluidConstants.nphases - 1],                                             [description = "phase fraction"]
+        ρ(t)[1:medium.FluidConstants.nphases],                                                 [description = "molar density"] 
+        z(t)[1:medium.FluidConstants.Nc, 1:medium.FluidConstants.nphases],                     [description = "mole fraction", irreducible = true]
+        p(t),                                                                                  [description = "pressure"]
+        T(t),                                                                                  [description = "Temperature"]
     end
 
-    eqs = [
-        # EOS 
-        ϱ ~ ms.molar_density(p,T,xᵢ;phase=phase),
-        h ~ ms.VT_enthalpy(ϱ,T,xᵢ),
-        1.0 ~ sum(collect(xᵢ)),
-        # Connector "1"
-        T ~ c1.T,
-        ϱ ~ c1.ϱ,
-        p ~ c1.p,
-        h ~ c1.h,
-        n ~ c1.n,
-        scalarize(xᵢ .~ c1.xᵢ)...,
-        # Connector "2"
-        T ~ c2.T,
-        ϱ ~ c2.ϱ,
-        p ~ c2.p,
-        h ~ c2.h,
-        n ~ -c2.n,
-        scalarize(xᵢ .~ c2.xᵢ)...,   
+    eq = [
+        [ρ[j] ~ PT_molar_density(medium.EoSModel, p, T, collect(z[:, j]), phase = medium.FluidConstants.phaseNames[j]) for j in 2:medium.FluidConstants.nphases]...
+        ρ[1] .~ 1.0/(sum([ϕ[j - 1]/ρ[j] for j in 2:medium.FluidConstants.nphases]))...
     ]
 
-    return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems=mcons)
+    guesses = [z[i, j] => medium.Guesses.x[i, j] for i in 1:medium.FluidConstants.Nc, j in 1:medium.FluidConstants.nphases]
+
+    ODESystem(eq, t, collect(Iterators.flatten(vars)), pars; guesses = guesses, name)
+
 end
 
-@connector function MaterialConnector(ms::MaterialSource;name)
+
+@connector function PhZConnector_(;medium, name)
+
     vars = @variables begin
-        T(t),               [description="temperature", output=true]        #, unit=u"K"]
-        ϱ(t),               [description="density", output=true]            #, unit=u"mol m^-3"]
-        p(t),               [description="pressure"]                        #, unit=u"Pa"]
-        h(t),               [description="molar enthalpy", output=true]     #, unit=u"J mol^-1"]
-        xᵢ(t)[1:ms.N_c],    [description="mole fractions", output=true]     #, unit=u"mol mol^-1"]
-        n(t),               [description="total molar flow", connect=Flow]  #, unit=u"mol s^-1"]
+        p(t),                                                                                      [description = "pressure"]                      
+        h(t)[1:medium.FluidConstants.nphases],                                                     [description = "molar enthalpy"]  
+        z₁(t)[1:medium.FluidConstants.Nc],                                                         [description = "overall mole fraction"]
+        z₂(t)[1:medium.FluidConstants.Nc],                                                         [description = "dense state mole fraction"] 
+        z₃(t)[1:medium.FluidConstants.Nc],                                                         [description = "dense mole fraction"]   
+        ṅ(t)[1:medium.FluidConstants.nphases],                                                     [description = "molar flow"]              
     end
 
-    return ODESystem(Equation[], t, collect(Iterators.flatten(vars)), []; name)
+    pars = []
+
+    eqs = []  # This avoids "BoundsError: attempt to access 0-element Vector{Vector{Any}} at index [0]"
+	eq = eqs==[] ? Equation[] : eqs
+
+    ODESystem(eq, t, collect(Iterators.flatten(vars)), pars; name)
+
 end
+
+#### ------ ControlVolumes ------
 
 @component function HeatConnector(;name)
     vars = @variables begin
-        Q(t),              [description="heat flux"]  #, unit=u"J s^-1"]
+        Q(t),              [description = "heat flux"]  #, unit=u"J s^-1"]
     end
 
     return ODESystem(Equation[], t, vars, []; name)
@@ -60,84 +54,141 @@ end
 
 @component function WorkConnector(;name)
     vars = @variables begin
-        W(t),              [description="power"]      #, unit=u"J s^1"]
+        W(t),              [description = "power"]      #, unit=u"J s^1"]
     end
 
     return ODESystem(Equation[], t, vars, []; name)
 end
 
-@component function SimpleControlVolume(ms::MaterialSource;
-                                        N_mcons,
-                                        N_heats=0,
-                                        N_works=0,
-                                        name)
-    # Init 
-    mcons = [MaterialConnector(ms;name=Symbol("c$i")) for i in 1:N_mcons]
-    works = [WorkConnector(name=Symbol("w$i")) for i in 1:N_works]
-    heats = [HeatConnector(name=Symbol("q$i")) for i in 1:N_heats]
 
-    vars = @variables begin
-        ΔH(t), [description="Enthalpy difference inlets/outlets"]  #, unit=u"J/s"]
-        ΔE(t), [description="Added/removed heat or work"]          #, unit=u"J/s"]
+@component function TwoPortControlVolume_(;medium, name)
+
+
+    systems = @named begin
+        InPort = PhZConnector_(medium = medium)
+        OutPort = PhZConnector_(medium = medium)
+        ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
     end
 
-    eqs = Equation[
-        ΔH ~ sum([c.h*c.n for c in mcons])
-        ΔE ~ (isempty(heats) ? 0.0 : sum([q.Q for q in heats])) + (isempty(works) ? 0.0 : sum([w.W for w in works]))
-        # Energy balance
-        0.0 ~ ΔH + ΔE
-        # Mole balance
-        [0.0 ~ sum([c.xᵢ[j]*c.n for c in mcons]) for j in 1:ms.N_c][:]
-    ]
+    vars = @variables begin
+        rᵥ(t)[1:medium.FluidConstants.Nc, 1:medium.FluidConstants.nphases],                            [description = "mass source or sink - volumetric  basis"]
+        rₐ(t)[1:medium.FluidConstants.Nc, 1:medium.FluidConstants.nphases],                            [description = "molar source or sink - through surface in contact with other phases"]      
+        Nᵢ(t)[1:medium.FluidConstants.Nc],                                                             [description = "molar holdup"]
+        nᴸⱽ(t)[1:medium.FluidConstants.nphases - 1],                                                   [description = "molar holdup"]              
+        U(t),                                                                                          [description = "internal energy holdup"]                                               
+        p(t),                                                                                          [description = "pressure"]  
+        V(t)[1:medium.FluidConstants.nphases],                                                         [description = "volume"]    
+        Q(t),                                                                                          [description = "heat flux"]
+        Wₛ(t),                                                                                         [description = "shaft work"]
+    end
 
-    return ODESystem(eqs, t, vars, []; name, systems=[mcons...,works...,heats...])
+    pars = []
+
+ 
+    eqs = [
+
+        # Energy balance
+
+        D(U) ~ InPort.h[1]*InPort.ṅ[1] + OutPort.h[1]*(OutPort.ṅ[1]) + Q + Wₛ
+
+        # Mole balance
+
+        scalarize(D(Nᵢ) .~ InPort.ṅ[1].*InPort.z₁ + (OutPort.ṅ[2].*OutPort.z₂ + OutPort.ṅ[3].*OutPort.z₃) .+ collect(rᵥ[:, 2:end]*V[2:end]))...
+
+        scalarize(rᵥ[:, 1] .~ sum(collect(rᵥ[:, 2:end]), dims = 2))...
+
+        scalarize(rₐ[:, 1] .~ sum(collect(rₐ[:, 2:end]), dims = 2))...
+
+        scalarize(Nᵢ .~ nᴸⱽ[1]*ControlVolumeState.z[:, 2] + nᴸⱽ[2]*ControlVolumeState.z[:, 3])...
+
+        scalarize(sum(Nᵢ) ~ sum(nᴸⱽ))
+
+        scalarize(sum(collect(ControlVolumeState.ϕ)) ~ 1.0)
+
+        
+        # Thermodynamic state equations
+
+        scalarize(ControlVolumeState.z[:, 1] .~ Nᵢ ./ sum(collect(Nᵢ)))...
+
+        ControlVolumeState.p ~ p
+
+        #[ControlVolumeState.ϕ[1] ~ sum(collect(nᵢ[:, 2]), dims = 1)./sum(collect(nᵢ[:, 1]), dims = 1)]...
+
+        
+        # Control Volume properties
+
+        U ~ (OutPort.h[1] - ControlVolumeState.p/ControlVolumeState.ρ[1])*sum(collect(Nᵢ)) 
+
+        V[1] ~ sum(collect(V[2:end]))
+        
+        V[2]*ControlVolumeState.ρ[2] ~ nᴸⱽ[1]
+
+        V[3]*ControlVolumeState.ρ[3] ~ nᴸⱽ[2]
+        
+        
+        # Outlet port properties
+
+        [OutPort.h[j] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[j], ControlVolumeState.T, collect(ControlVolumeState.z[:, j])) for j in 2:medium.FluidConstants.nphases]...
+        
+        OutPort.h[1] ~ dot(collect(OutPort.h[2:end]), collect(ControlVolumeState.ϕ))
+         
+        OutPort.p ~ ControlVolumeState.p
+
+        scalarize(OutPort.z₁ .~ ControlVolumeState.z[:, 1])...
+        scalarize(OutPort.z₂ .~ ControlVolumeState.z[:, 2])...
+        scalarize(OutPort.z₃ .~ ControlVolumeState.z[:, 3])...
+
+        scalarize(ControlVolumeState.z[:, 3] ~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...
+        scalarize(nᴸⱽ[1]/sum(nᴸⱽ) ~ flash_vaporized_fraction(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1]))[1])
+
+        ControlVolumeState.ϕ[1] ~ nᴸⱽ[1]/sum(nᴸⱽ)
+
+        ]
+
+        guesses = [nᴸⱽ[2] => 5.0, V[2] => 5.0/medium.Guesses.ρ[2], V[3] => 5.0/medium.Guesses.ρ[3],
+        ]
+        #guesses = [nᵢ[:, 2:end] => medium.Guesses.x[:, 2:end]]
+
+        return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, guesses = guesses, systems = [systems...])
+
 end
 
-@component function TPControlVolume(ms::MaterialSource;
-                                    N_mcons,
-                                    N_heats=0,
-                                    N_works=0,
-                                    phases=["unknown"],
-                                    reactive=false,
-                                    name)
-    # Init 
-    N_ph = length(phases)
-    mcons = [MaterialConnector(ms;name=Symbol("c$i")) for i in 1:N_mcons]
-    works = [WorkConnector(name=Symbol("w$i")) for i in 1:N_works]
-    heats = [HeatConnector(name=Symbol("q$i")) for i in 1:N_heats]
+@component function FixedBoundary_pTzn_(;medium, p, T, z, ṅ, name)
 
-    vars = @variables begin
-        T(t),                       [description="temperature", bounds=(0,Inf)]         #, unit=u"K"]
-        p(t),                       [description="pressure", bounds=(0,Inf)]            #, unit=u"Pa"]
-        ϱ(t)[1:N_ph],               [description="density", bounds=(0,Inf)]             #, unit=u"mol m^-3"]
-        (nᵢ(t))[1:N_ph,1:ms.N_c],   [description="molar holdup", bounds=(0,Inf)]        #, unit=u"mol"]
-        (xᵢ(t))[1:N_ph,1:ms.N_c],   [description="mole fractions", bounds=(0,1)]        #, unit=u"mol mol^-1"]
-        n(t),                       [description="total molar holdup", bounds=(0,Inf)]  #, unit=u"mol"]
-        U(t),                       [description="internal energy"]                     #, unit=u"J"]
-        ΔH(t),                      [description="enthalpy difference inlets/outlets"]  #, unit=u"J/s"]
-        ΔE(t),                      [description="added/removed heat or work"]          #, unit=u"J/s"]
-        V(t),                       [description="volume", bounds=(0,Inf)]             #, unit=u"m^3"]
+    systems = @named begin
+        OutPort = PhZConnector_(medium = medium)
+        ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
     end
-    reactive ? append!(vars, @variables begin
-        ΔnR(t)[1:ms.N_c],           [description="molar holdup change by reaction"]     #, unit=u"mol"])
-        ΔHᵣ(t),                     [description="enthalpy of reaction"]                #, unit=u"J/s"]
-    end) : nothing
+    
+    vars = []
+
+    pars = []
 
     eqs = [
-        ΔH ~ sum([c.h*c.n for c in mcons]),
-        ΔE ~ (isempty(heats) ? 0.0 : sum([q.Q for q in heats])) + (isempty(works) ? 0.0 : sum([w.W for w in works])),
-        # Energy balance
-        D(U) ~ ΔH + ΔE + (reactive ? ΔHᵣ : 0.0),
-        # Mole balance
-        [D(sum(collect(nᵢ[:,i]))) ~ sum([c.xᵢ[i]*c.n for c in mcons]) + 
-            (reactive ? ΔnR[i] : 0.0) for i in 1:ms.N_c]...,
-        n ~ sum(collect([nᵢ...])),
-        [xᵢ[j,i] ~ nᵢ[j,i]/sum(collect(nᵢ[j,:])) for i in 1:ms.N_c, j in 1:N_ph]...,
-        # Thermodynamic system properties
-        [ϱ[j] ~ ms.molar_density(p,T,collect(xᵢ[j,:]);phase=phases[j]) for j in 1:N_ph]...,
-        U ~ sum([ms.VT_internal_energy(ϱ[j],T,collect(xᵢ[j,:]))*sum(collect(nᵢ[j,:])) for j in 1:N_ph]),
-        V ~ n / sum(collect(ϱ)),
+        # Port equations
+        OutPort.p ~ p
+        scalarize(OutPort.z₁ .~ z)...
+        scalarize(OutPort.z₂ .~ ControlVolumeState.z[:, 2])...
+        scalarize(OutPort.z₃ .~ ControlVolumeState.z[:, 3])...
+        OutPort.ṅ[1] ~ ṅ
+        OutPort.ṅ[2] ~ ControlVolumeState.ϕ[1]*ṅ
+        OutPort.ṅ[3] ~ ControlVolumeState.ϕ[2]*ṅ
+        [OutPort.h[i] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[i], ControlVolumeState.T, ControlVolumeState.z[:, i]) for i in 2:medium.FluidConstants.nphases]...
+        OutPort.h[1] ~ dot(collect(OutPort.h[2:end]), collect(ControlVolumeState.ϕ))
+
+        # State equations
+        scalarize(ControlVolumeState.z[:, 1] .~ z)...
+        scalarize(ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(medium.EoSModel, p, T, z))...
+        scalarize(ControlVolumeState.z[:, 3] .~ flash_mol_fractions_vapor(medium.EoSModel, p, T, z))...
+        ControlVolumeState.T ~ T
+        OutPort.ṅ[2] + OutPort.ṅ[3] ~ OutPort.ṅ[1]
+        ControlVolumeState.p ~ p
+        scalarize(ControlVolumeState.ϕ[1] ~ flash_vaporized_fraction(medium.EoSModel, p, T, z)[1])
     ]
 
-    return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems=[mcons...,works...,heats...])
+    return ODESystem(eqs, t, vars, collect(Iterators.flatten(pars)); name, systems = [systems...])
+
+
 end
+
+

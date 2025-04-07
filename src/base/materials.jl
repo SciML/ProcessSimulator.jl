@@ -1,51 +1,123 @@
-abstract type AbstractMaterialSource end
+abstract type AbstractFluidMedium end
 
-struct Reaction
-    ν::Vector{Float64}              # Stoichiometry
-    r::Function                     # Reaction rate (defined as f(p,T,xᵢ)) in mol/s
-    Δhᵣ::Function                   # Reaction enthalpy (defined as f(T)) in J/mol
-    Reaction(;ν, r, Δhᵣ) = new(ν, r, Δhᵣ)
+abstract type AbstractEoSBased <: AbstractFluidMedium end
+
+abstract type AbstractSinkSource end
+
+abstract type AbstractReaction <: AbstractSinkSource end
+
+const R = 8.31446261815324 # J/(mol K)
+
+struct PowerLawReaction{T <: Real, Arr <: AbstractArray{T}} <: AbstractReaction
+    ν::Arr              # Stoichiometry
+    n::Arr              # Reaction order
+    A::T                # Arrhenius constant
+    Eₐ::T               # Activation energy
 end
 
-struct MaterialSource <: AbstractMaterialSource
-    name::String                    # Name of the material source
-    components::Vector{String}      # Component names
-    N_c::Int                        # Number of components
-    Mw::Vector{Float64}             # Molar weight in kg/mol
-    pressure::Function              # Pressure function (defined as f(ϱ,T,xᵢ;kwargs...)) in Pa
-    molar_density::Function         # Molar density function (defined as f(p,T,xᵢ;kwargs...)) in mol/m³
-    VT_internal_energy::Function    # Internal energy function (defined as f(ϱ,T,xᵢ;kwargs...)) in J/mol
-    VT_enthalpy::Function           # Enthalpy function (defined as f(ϱ,T,xᵢ;kwargs...)) in J/mol
-    VT_entropy::Function            # Entropy function (defined as f(ϱ,T,xᵢ;kwargs...)) in J/(mol K)
-    tp_flash::Function              # Flash function (defined as f(p,T,xᵢ;kwargs...))
-    reaction::Vector{Reaction}      # Reaction struct 
+
+function Rate(SinkSource::PowerLawReaction, cᵢ, T, V)
+    A, Eₐ, n, ν = SinkSource.A, SinkSource.Eₐ, SinkSource.n, SinkSource.ν
+    return  A * exp(-Eₐ / (R * T)) * prod(ν[i]*cᵢ[i]^n[i] for i in eachindex(cᵢ))*V
 end
 
-function MaterialSource(components::Union{String,Vector{String}}; kwargs...)
-    components = components isa String ? [components] : components
-    
-    # Check for mandatory keyword arguments
-    mandatory = [:Mw, :molar_density, :VT_enthalpy]
-    [haskey(kwargs, k) || throw(ArgumentError("Missing keyword argument $k")) for k in mandatory]
-
-    N_c = length(components)
-    length(kwargs[:Mw]) == N_c || throw(ArgumentError("Length of Mw must be equal to the number of components"))
-    name = haskey(kwargs, :name) ? kwargs[:name] : join(components, "_")
-
-    f_NA(field) = error("Function $field not defined in MaterialSource")
-
-    MaterialSource(
-        name,
-        components,
-        N_c,
-        kwargs[:Mw] isa Number ? [kwargs[:Mw]] : kwargs[:Mw],
-        get(kwargs, :pressure, (a,T,n;kws...) -> f_NA(:pressure)),
-        kwargs[:molar_density],
-        get(kwargs, :VT_internal_energy, (a,T,n;kws...) -> f_NA(:VT_internal_energy)),
-        kwargs[:VT_enthalpy],
-        get(kwargs, :VT_entropy, (a,T,n;kws...) -> f_NA(:VT_entropy)),
-        get(kwargs, :tp_flash, (a,T,n;kws...) -> f_NA(:tp_flash)),
-        get(kwargs, :reactions, Reaction[])
-    )
+struct LDFAdsorption{K <: AbstractArray} <: AbstractSinkSource
+    k::K                            # Mass transfer coefficient in 1/s.
 end
+
+struct BasicFluidConstants{S <: Union{AbstractString, Nothing}, M <: Union{Real, AbstractVector{<: Real}}, N <: Int, V <: Union{Nothing, AbstractVector{<: AbstractString}}}
+    iupacName::S           # "Complete IUPAC name (or common name, if non-existent)";
+    casRegistryNumber::S   # "Chemical abstracts sequencing number (if it exists)";
+    chemicalFormula::S     # "Chemical formula";
+    structureFormula::S    # "Chemical structure formula";
+    molarMass::M           # "Molar mass";
+    Nc::N                  # "Number of components";
+    nphases::N             # "Maximum number of phases";
+    phaseNames::V          # "Label of the phases"
+end
+
+##That should be part of the PropertyModels package
+
+
+function BasicFluidConstants(molarMass::M) where M <: AbstractVector{<: Real}
+    Nc = length(molarMass)
+    return BasicFluidConstants(nothing, nothing, nothing, nothing, molarMass, Nc, 3, ["overall", "liquid", "vapor"])
+end
+
+struct EosBasedGuesses{M <: Any, V <: Real, D <: AbstractArray{V}, F <: AbstractArray{V}}
+    EoSModel::M
+    p::V #Pressure
+    T::V #Temperature
+    ρ::D #Molar density per phase
+    x::F #Mole fraction per phase
+    h::D #Molar enthalpy per phase
+    pᵇᵈ::D #Bubble and dew pressure
+end
+
+function EosBasedGuesses(EoSModel::M, p::V, T::V, z::D) where {M <: Any, V <: Real, D <: AbstractArray{ <: Real}}
+
+    ## Bubble and dew pressure
+    pᵇ = bubble_pressure(EoSModel, T, z)[1]
+    pᵈ = dew_pressure(EoSModel, T, z)[1]
+    pᵇᵈ = [pᵇ, pᵈ]
+
+    Nc = length(z)
+    nᵢⱼ = zeros(V, Nc, 2)
+    x = zeros(V, Nc, 3)
+    ρ = zeros(V, 3)
+    h = zeros(V, 3)
+
+    if p ≤ pᵇ && p ≥ pᵈ
+        sol = TP_flash(EoSModel, p, T, z)
+        ϕ = sol[1]
+        x .= sol[2]
+        ρₗ = PT_molar_density(EoSModel, p, T, xᵢⱼ[:, 1], phase = "liquid") #Assumes only two phases
+        ρᵥ = PT_molar_density(EoSModel, p, T, xᵢⱼ[:, 2], phase = "vapor")  
+        ρₒᵥ = 1.0/(ϕ[1]/ρₗ + ϕ[2]/ρᵥ)
+        ρ .= [ρₒᵥ, ρₗ, ρᵥ]
+
+        ## Enthalpy
+        hₗ = ρT_enthalpy(EoSModel, ρ[2], T, x[:, 2])
+        hᵥ = ρT_enthalpy(EoSModel, ρ[3], T, x[:, 3])
+        hₒᵥ = hₗ*ϕ[1] + hᵥ*ϕ[2] 
+        h .= [hₒᵥ, hₗ, hᵥ]
+
+    elseif p > pᵇ
+        nᵢⱼ[:, 1] .= z
+        x[:, 1:2] .= z
+        ϕ = sum(nᵢⱼ, dims = 1)/sum(nᵢⱼ)
+        println(ϕ)
+        ρ[2] = PT_molar_density(EoSModel, p, T, z, phase = "liquid")
+        ρ[3] = PT_molar_density(EoSModel, p, T, z, phase = "vapor")
+        ρ[1] = 1.0/(ϕ[1]/ρ[2] + ϕ[2]/ρ[3])
+        hₗ = ρT_enthalpy(EoSModel, ρ[2], T, z)
+        hᵥ = ρT_enthalpy(EoSModel, ρ[3], T, z)
+        hₒᵥ = hₗ*ϕ[1] + hᵥ*ϕ[2] 
+        h .= [hₒᵥ, hₗ, hᵥ]
+
+    elseif p < pᵈ
+        nᵢⱼ[:, 2] .= z
+        x[:, [1, 3]] .= z
+        ϕ = sum(nᵢⱼ, dims = 1)/sum(nᵢⱼ)
+        ρ[2] = PT_molar_density(EoSModel, p, T, z, phase = "liquid")
+        ρ[3] = PT_molar_density(EoSModel, p, T, z, phase = "vapor")
+        ρ[1] = 1.0/(ϕ[1]/ρ[2] + ϕ[2]/ρ[3])
+        hₗ = ρT_enthalpy(EoSModel, ρ[2], T, z)
+        hᵥ = ρT_enthalpy(EoSModel, ρ[3], T, z)
+        hₒᵥ = hₗ*ϕ[1] + hᵥ*ϕ[2] 
+        h .= [hₒᵥ, hₗ, hᵥ]
+    end
+
+
+    return EosBasedGuesses(EoSModel, p, T, ρ, x, h, pᵇᵈ)
+end
+
+struct EoSBased{F <: BasicFluidConstants, E <: Any, G <: EosBasedGuesses} <: AbstractEoSBased
+    FluidConstants::F
+    EoSModel::E
+    Guesses::G
+end
+
+
+
 
