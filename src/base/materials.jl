@@ -8,18 +8,46 @@ abstract type AbstractReaction <: AbstractSinkSource end
 
 const R = 8.31446261815324 # J/(mol K)
 
+
+function XtoMolar(flowrate, medium, state, flowbasis)
+    if flowbasis == :molar
+        return flowrate
+    elseif flowbasis == :mass
+        return MasstoMolar(flowrate, medium, state)
+    elseif flowbasis == :volume
+        return VolumetoMolar(flowrate, medium, state)
+    else
+        error("Invalid flow basis: $flowbasis")
+    end
+end
+
+function MasstoMolar(flowrate, medium::M, state::S) where {M <: AbstractFluidMedium}
+    M̄ = sum(state.z[:, 1] .* medium.FluidConstants.molarMass) #kg/mol
+    return flowrate / M̄ 
+end
+
+function VolumetoMolar(flowrate, medium::M, state::S) where {M <: AbstractFluidMedium}
+    return flowrate*state.ρ[1] 
+end
+
 struct PowerLawReaction{T <: Real, Arr <: AbstractArray{T}} <: AbstractReaction
-    ν::Arr              # Stoichiometry
-    n::Arr              # Reaction order
-    A::T                # Arrhenius constant
-    Eₐ::T               # Activation energy
+    species::Array{String}        # Reactants and Products names
+    ν::Arr                        # Stoichiometry
+    n::Arr                        # Reaction order
+    A::T                          # Arrhenius constant
+    Eₐ::T                         # Activation energy
 end
 
 
-function Rate(SinkSource::PowerLawReaction, cᵢ, T, V)
+function _Rate(SinkSource::PowerLawReaction, cᵢ, T)
     A, Eₐ, n, ν = SinkSource.A, SinkSource.Eₐ, SinkSource.n, SinkSource.ν
-    return  A * exp(-Eₐ / (R * T)) * prod(ν[i]*cᵢ[i]^n[i] for i in eachindex(cᵢ))*V
+    r = A * exp(-Eₐ / (R * T)) * prod(cᵢ[i]^n[i] for i in eachindex(cᵢ))
+    return r.*ν
 end
+
+Rate(SinkSource, cᵢ, T) = _Rate(SinkSource, cᵢ, T)
+
+Broadcast.broadcasted(::typeof(Rate), reactions, cᵢ, T) = broadcast(_Rate, reactions, Ref(cᵢ), T)
 
 struct LDFAdsorption{K <: AbstractArray} <: AbstractSinkSource
     k::K                            # Mass transfer coefficient in 1/s.
@@ -71,8 +99,8 @@ function EosBasedGuesses(EoSModel::M, p::V, T::V, z::D) where {M <: Any, V <: Re
         sol = TP_flash(EoSModel, p, T, z)
         ϕ = sol[1]
         x .= sol[2]
-        ρₗ = PT_molar_density(EoSModel, p, T, xᵢⱼ[:, 1], phase = "liquid") #Assumes only two phases
-        ρᵥ = PT_molar_density(EoSModel, p, T, xᵢⱼ[:, 2], phase = "vapor")  
+        ρₗ = PT_molar_density(EoSModel, p, T, x[:, 1], phase = "liquid") #Assumes only two phases
+        ρᵥ = PT_molar_density(EoSModel, p, T, x[:, 2], phase = "vapor")  
         ρₒᵥ = 1.0/(ϕ[1]/ρₗ + ϕ[2]/ρᵥ)
         ρ .= [ρₒᵥ, ρₗ, ρᵥ]
 
@@ -113,7 +141,7 @@ function EosBasedGuesses(EoSModel::M, p::V, T::V, z::D) where {M <: Any, V <: Re
 end
 
 struct EoSBased{F <: BasicFluidConstants, E <: Any, G <: EosBasedGuesses} <: AbstractEoSBased
-    FluidConstants::F
+    Constants::F
     EoSModel::E
     Guesses::G
 end

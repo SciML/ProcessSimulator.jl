@@ -7,52 +7,34 @@ using ModelingToolkit: scalarize, equations, get_unknowns
 using NonlinearSolve
 
 #Building media
-#model = Clapeyron.NRTL(["water", "methanol", "ethanol"], puremodel = PR(["water", "methanol", "ethanol"], idealmodel = ReidIdeal))
-#model = Clapeyron.PR(["water", "methanol"])
+ideal = JobackIdeal(["water", "methanol"])
+ideal.params.reference_state
 
 model = Clapeyron.PR(["water", "methanol"], idealmodel = ReidIdeal)
-bubble_pressure(model, 298.15, [0.5, 0.5])
-dew_pressure(model, 298.15, [0.55, 0.5])
+bubble_pressure(model, 350.15, [0.8, 0.2])
+dew_pressure(model, 350.15, [0.8, 0.2])
 #flash_cl = Clapeyron.tp_flash(model, 1.01325e5, 350.15, [0.33, 0.33, 0.34])
 #enthalpy(model, 1.01325e5, 350.15, [0.8, 0.2], phase = "liquid")
 
-h(p) = TP_flash(model, p, 298.15, [0.5, 0.5])
-sol = TP_flash(model, 101325.0, 350.15, [10.0, 5])[2]
-rho = molar_density(model, 101325.0, 350.15, sol[:, 3])
-ρT_enthalpy(model, rho, 350.15, sol[:, 3])
-enthalpy(model, 101325.0, 350.15, sol[:, 3])
-
-FiniteDifferences.central_fdm(3, 1)(h, 150_000.0)
-
-guess = EosBasedGuesses(model, 1.01325e5, 298.15, [0.8, 0.2])
+guess = EosBasedGuesses(model, 1.01325e5, 350.15, [0.8, 0.2])
 medium = EoSBased(BasicFluidConstants([0.01801528, 0.1801528]), model, guess)
-medium.Guesses
-
-
-#= @named InPort = PhZConnector_(medium = medium)
-@named OutPort = PhZConnector_(medium = medium)
-@named ControlVolumeState = ρTz_ThermodynamicState_(medium = medium) =#
+medium.Guesses.ρ
 
 ### ------ Reservoir test
 @named stream = FixedBoundary_pTzn_(medium = medium, p = 1.01325e5, T = 350.15, z = [.8, .2], ṅ = 10.0)
 
-keys(guesses(stream)) |> collect
-
 simple_stream = structural_simplify(stream)
-#= u0 = [simple_stream.ControlVolumeState.z[1, 1] => 0.8, simple_stream.ControlVolumeState.z[2, 1] => 0.2
-,simple_stream.ControlVolumeState.z[1, 3] => 0.5, simple_stream.ControlVolumeState.z[2, 3] => 0.5] =#
 
 prob = SteadyStateProblem(simple_stream, [])
 @time sol = solve(prob, SSRootfind())
-sol[stream.ControlVolumeState.ϕ]
+sol[stream.OutPort.ṅ]
 
 ### ------ ControlVolume
-
 
 @component function HeatedTank_(;medium, Q̇, pressure, ṅ_out, name)
 
         @named CV = TwoPortControlVolume_(medium = medium)
-        @unpack OutPort, rₐ, rᵥ, Q, p, Wₛ  = CV
+        @unpack ControlVolumeState, OutPort, rₐ, rᵥ, Q, p, Wₛ, nᴸⱽ  = CV
 
         eqs = [
             Wₛ ~ 0.0
@@ -63,6 +45,9 @@ sol[stream.ControlVolumeState.ϕ]
             OutPort.ṅ[1] ~ -ṅ_out
             OutPort.ṅ[2] ~ -ṅ_out
             OutPort.ṅ[3] ~ -1e-8
+            ControlVolumeState.p ~ p
+            scalarize(ControlVolumeState.z[:, 3] ~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...
+            scalarize(nᴸⱽ[1]/sum(nᴸⱽ) ~ flash_vaporized_fraction(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1]))[1])
 
         ]
 
@@ -104,16 +89,24 @@ length(alg_equations(sistem))
 
 equations(sistem)
 defaults(sistem)
+guesses_ = [
+ sistem.tank.ControlVolumeState.z[1, 2] => 0.2, 
+ sistem.tank.ControlVolumeState.z[2, 2] => 0.2, 
+ sistem.tank.V[2] => 50.0,
+  sistem.tank.V[3] => 100.0,
+  sistem.tank.nᴸⱽ[2] => 50.0]
 
-u0 = [sistem.tank.Nᵢ[1] => 150.0, sistem.tank.Nᵢ[2] => 80.0,
+u0 = [sistem.tank.Nᵢ[1] => 80.0, sistem.tank.Nᵢ[2] => 80.0,
  sistem.tank.ControlVolumeState.T => 300.0]
 
-prob = ODEProblem(sistem, u0, (0.0, 10.0));
-prob.u0
+prob = ODEProblem(sistem, u0, (0.0, 100.0), guesses = guesses_);
+ssprob = SteadyStateProblem(sistem, [guesses_...; u0])
 
-sol = solve(prob, FBDF(autodiff = false))
+sol = solve(prob, Rodas42(autodiff = false))
 
-plot(sol.t, sol[sistem.tank.ControlVolumeState.z[2, 2]])
+sol_ss = solve(ssprob, SSRootfind())
+
+plot(sol.t, sol[sistem.tank.ControlVolumeState.T])
 
 initialization_equations(sistem)
 equations(prob.f.initializationprob.f.sys)

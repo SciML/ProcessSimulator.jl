@@ -1,8 +1,8 @@
-module ClapeyronExt
+#module ClapeyronExt
 
-import ProcessSimulator
-import Clapeyron 
-import Symbolics
+#import ProcessSimulator
+#import Clapeyron 
+#import Symbolics
 
 
 function EosBasedGuesses(EoSModel::M, p::V, T::V, z::D) where {M <: Clapeyron.ActivityModel, V <: Real, D <: AbstractArray{ <: Real}}
@@ -76,12 +76,12 @@ function TP_flash(EoSModel::M, p, T, x) where M <: Clapeyron.EoSModel
          elseif vapor_check(EoSModel, p, T, x)
 
             xᵢⱼ = [ones(length(x))/length(x) x]
-            ϕ = [0.0, 1.0 - 1e-7]
+            ϕ = [0.0, 1.0]
 
          else
                 
             xᵢⱼ = [x ones(length(x))/length(x)]
-            ϕ = [1.0 - 1e-7, 0.0]
+            ϕ = [1.0, 0.0]
 
          end
 
@@ -182,6 +182,6 @@ end
 
 @register_symbolic dewP(model::Clapeyron.EoSModel, T, arr::AbstractVector)
 
-end
+#end
 
 
