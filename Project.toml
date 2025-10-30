@@ -1,19 +1,34 @@
 name = "ProcessSimulator"
 uuid = "8886c03b-4dde-4be1-b6ee-87d056f985b8"
-authors = ["Chris Rackauckas", "Vinicius Viena Santana", "Sebastian Schmitt", "Andrés Riedemann", "Pierre Walker", "Avinash Subramanian"]
-version = "1.0.0-DEV"
+authors = ["Vinicius Viena Santana"]
+version = "0.0.1-DEV"
 
 [deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
+
+[weakdeps]
+Clapeyron = "7c7805af-46cc-48c9-995b-ed0ed2dc909a"
+
+[extensions]
+ProcessSimulatorClapeyronExt = "Clapeyron"
 
 [compat]
-ModelingToolkit = "9"
+Clapeyron = "0.6.16"
+LinearAlgebra = "1.11.0"
+PrettyTables = "2.4.0"
+Printf = "1.11.0"
+Symbolics = "6.55.0"
+UnicodePlots = "3.8.1"
 julia = "1.10"
 
 [extras]
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 
 [targets]
-test = ["Test", "SafeTestsets", "DifferentialEquations"]
+test = ["Test", "SafeTestsets"]

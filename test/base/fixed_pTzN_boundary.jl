@@ -1,169 +1,202 @@
 using ModelingToolkit
 using Clapeyron
-using DynamicQuantities
-using LinearAlgebra, DifferentialEquations
+using LinearAlgebra
 using ModelingToolkit: t_nounits as t, D_nounits as D
 using ModelingToolkit: scalarize, equations, get_unknowns
 using NonlinearSolve
+using OrdinaryDiffEq
 
 #Building media
-ideal = JobackIdeal(["water", "methanol"])
-ideal.params.reference_state
+components = ["carbon dioxide", "methane"]
 
-model = Clapeyron.PR(["water", "methanol"], idealmodel = ReidIdeal)
-bubble_pressure(model, 350.15, [0.8, 0.2])
-dew_pressure(model, 350.15, [0.8, 0.2])
-#flash_cl = Clapeyron.tp_flash(model, 1.01325e5, 350.15, [0.33, 0.33, 0.34])
-#enthalpy(model, 1.01325e5, 350.15, [0.8, 0.2], phase = "liquid")
+model = SRK(components, idealmodel = ReidIdeal)
 
-guess = EosBasedGuesses(model, 1.01325e5, 350.15, [0.8, 0.2])
-medium = EoSBased(BasicFluidConstants([0.01801528, 0.1801528]), model, guess)
-medium.Guesses.ρ
+#model = ReidIdeal(components)
+
+p__ = 1.0*101325.0 # Pa
+T__ = 273.15 + 25.0 # K
+z__ = [0.5, 0.5] # Mole fractions
+
+masstransfermodel = ConstantMassTransferCoeff([5e-1, 3e-1]); #This assumes the same correlation for all interfaces you might have with the control volume.
+heat_transfer_model = ConstantHeatTransferCoeff(10.0);
+viscosity_model = ChapmanEnskogModel(components, ref = "Poling et al. (2001)")
+fluid_transport_model = TransportModel(masstransfermodel, heat_transfer_model, viscosity_model)
+medium = EoSBased(components = components, eosmodel = model, transportmodel = fluid_transport_model, state = pTzState(p__, T__, z__))
+
 
 ### ------ Reservoir test
-@named stream = FixedBoundary_pTzn_(medium = medium, p = 1.01325e5, T = 350.15, z = [.8, .2], ṅ = 10.0)
 
-simple_stream = structural_simplify(stream)
+@named reservoir = FixedBoundary_pTzn_(medium = medium, p = p__, T = T__, z = z__, flowrate = -5e-4, flowbasis = :volume)
+@named sink = ConnHouse(medium = medium)
 
-prob = SteadyStateProblem(simple_stream, [])
-@time sol = solve(prob, SSRootfind())
-sol[stream.OutPort.ṅ]
+connections = [connect(reservoir.OutPort, sink.port)]
 
-### ------ ControlVolume
+@named sys = System(connections, t; systems = [reservoir, sink])
 
-@component function HeatedTank_(;medium, Q̇, pressure, ṅ_out, name)
-
-        @named CV = TwoPortControlVolume_(medium = medium)
-        @unpack ControlVolumeState, OutPort, rₐ, rᵥ, Q, p, Wₛ, nᴸⱽ  = CV
-
-        eqs = [
-            Wₛ ~ 0.0
-            scalarize(rᵥ[:, 2:end] .~ 0.0)...
-            scalarize(rₐ[:, 2:end] .~ 0.0)...
-            Q ~ Q̇
-            p ~ pressure
-            OutPort.ṅ[1] ~ -ṅ_out
-            OutPort.ṅ[2] ~ -ṅ_out
-            OutPort.ṅ[3] ~ -1e-8
-            ControlVolumeState.p ~ p
-            scalarize(ControlVolumeState.z[:, 3] ~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...
-            scalarize(nᴸⱽ[1]/sum(nᴸⱽ) ~ flash_vaporized_fraction(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1]))[1])
-
-        ]
-
-        pars = []
-
-        vars = []
+prob = NonlinearProblem(simple_stream, guesses(simple_stream))
+@time sol = solve(prob, RobustMultiNewton())
+sol[reservoir.ControlVolumeState.ϕ]
 
 
-    return extend(ODESystem(eqs, t, vars, pars; name), CV)
+
+
+#Testing adsorption interface
+## Solid Eos
+adsorbenteos = SolidEoSModel(750.0, 273.15, [0.0, 0.0, 0.0, 0.0], 0.0, 273.15, [935.0, 0.0, 0.0, 0.0]) #J/kg/K
+
+# Isotherm
+iso_c1 = LangmuirS1(1e-8, 1e-8, -30_000.1456)
+iso_c2 = LangmuirS1(10.0, 1e-9, -30_000.1456)
+all_iso = ExtendedLangmuir(iso_c1, iso_c2)
+
+
+# Mass transfer in film
+masstransfermodel = HomogeneousDiffusivityCoeff([0.0, 1e-8])
+heattransfermodel = ConstantHeatTransferCoeff(0.0)
+transportmodel = TransportModel(masstransfermodel, heattransfermodel)
+
+
+#Defining adsorbent model
+adsorbent = Adsorbent(adsorbent_name = "XYZ",
+                     particle_size = 2e-3,
+                     components = components,
+                     isotherm = all_iso,
+                     EoSModel = adsorbenteos,
+                     transport_model = transportmodel) 
+
+
+#Set constants
+porosity = 0.5
+V = 5e-3*10.0
+#p = 101325.0
+phase = "vapor"
+solidmedium = adsorbent
+fluidmedium = medium
+mass_of_adsorbent = V * solidmedium.EoSModel.ρ_T0 * porosity
+A  = V*(1.0 - porosity)*area_per_volume(solidmedium) #Interfacial area
+
+
+_0 = 1e-8
+Ntot = 5.0
+guess_adsorber = EosBasedGuesses(model, Clapeyron.pressure(model, V, T__, [Ntot, _0]), T__, [Ntot, _0]/(Ntot + _0))
+medium_adsorber = EoSBased(constants, model, fluid_transport_model, guess_adsorber)
+#Well mixed adsorber test in vapor phase with valve
+@named boundary = FixedBoundary_pTzn_(medium = fluidmedium, p = p__, T = T__, z = z__, flowrate = -0.10, flowbasis = :molar)
+@named tank =  WellMixedAdsorber(fluidmedium = medium_adsorber, solidmedium = solidmedium, porosity = 0.5, p = p__, V = V, phase = "vapor")
+@named valve = Valve_(medium = medium_adsorber, Cv = 8.4e-6, ΔP_f = x -> √(x) , phase = "vapor")
+@named sink = ConstantPressure(medium = medium_adsorber, p = 0.2*p__)
+@named flowsink = ConstantFlowRate(medium = fluidmedium, flowrate = 0.3, flowbasis = :molar)
+
+
+topography = [connect(boundary.OutPort, tank.mobilephase.InPort),
+              connect(tank.mobilephase.OutPort, valve.InPort),
+              connect(valve.OutPort, sink.port)
+]
+
+#= perfect_flow = [connect(boundary.OutPort, tank.mobilephase.InPort),
+                connect(tank.mobilephase.OutPort, flowsink.port)] =#
+
+
+@named flowsheet = System(topography, t, [], [], systems = [boundary, tank, valve, sink])
+
+#@named perfect_flow_system = System(perfect_flow, t, [], [], systems = [tank, boundary, flowsink])
+
+ModelingToolkit.flatten_equations(equations(expand_connections(flowsheet)))
+
+simple_flowsheet = mtkcompile(flowsheet)
+
+alg_equations(simple_flowsheet)
+unknowns(simple_flowsheet)
+
+see_g = guesses(simple_flowsheet)
+
+
+u0_flowsheet = [tank.mobilephase.Nᵢ[1] => Ntot,
+                tank.mobilephase.Nᵢ[2] => _0,
+                tank.mobilephase.ControlVolumeState.T => T__,
+                tank.stationaryphase.Nᵢ[1] => Ntot,
+                tank.stationaryphase.Nᵢ[2] => _0,
+                tank.stationaryphase.ControlVolumeState.T => T__,
+                valve.opening => 0.5]
+
+
+missing_guesses = [
+                   tank.mobilephase.ControlVolumeState.p => guess_adsorber.p,
+                   tank.mobilephase.V[2] => _0,
+                   valve.InPort.ṅ[1] => 0.1
+]
+
+
+prob = ODEProblem(simple_flowsheet, u0_flowsheet, (0.0, 15500.0), guesses = missing_guesses, use_scc = false)
+
+@time sol = solve(prob, FBDF(autodiff = false), abstol = 1e-10, reltol = 1e-10)
+
+
+
+
+sol[tank.mobilephase.Nᵢ]
+sol[tank.mobilephase.InPort.ṅ[1]]
+sol[tank.stationaryphase.Nᵢ[2]]
+plot(sol.t, sol[valve.InPort.ṅ[1]], label = "total molar flow rate")
+sol[tank.interface.SolidSurface.InPort.ϕₘ[1]]
+sol[tank.mobilephase.ControlVolumeState.p]
+sol[tank.mobilephase.V[1]]
+
+
+sol[tank.interface.SolidSurface.InPort.ϕₘ[2]] .+ sol[tank.interface.FluidSurface.OutPort.ϕₘ[2]]
+
+
+plot(sol.t, sol[tank.interface.FluidSurface.InPort.ϕₕ])
+plot(sol.t, sol[tank.interface.SolidSurface.InPort.ϕₘ[1]])
+plot(sol.t, sol[tank.interface.FluidSurface.InPort.ϕₘ[2]])
+plot(sol.t, sol[tank.stationaryphase.Q], label = "methane")
+plot(sol.t, sol[tank.stationaryphase.Nᵢ[2]], label = "methane")
+plot(sol.t, sol[tank.mobilephase.U], label = "mobile phase")
+plot(sol.t, sol[tank.mobilephase.ControlVolumeState.T], label = "mobile phase")
+plot(sol.t, sol[tank.mobilephase.Nᵢ[1]])
+plot(sol.t, sol[tank.mobilephase.ControlVolumeState.z[1, 1]], label = "mobile phase")
+
+Clapeyron.pressure(model, V, 300.15, 0.22*[0.0, 0.0, 1.0])
+Clapeyron.volume(model, 101325.0, 300.15, 0.22*[0.0, 0.0, 1.0], phase = :stable)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### ---- 
+#= @named InPort = PhZConnector_(medium = medium)
+@named OutPort = PhZConnector_(medium = medium)
+@named ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
+vars = @variables begin
+    rᵥ(t)[1:medium.Constants.Nc, 1:medium.Constants.nphases],                                      [description = "mass source or sink - volumetric  basis"]
+    rₐ(t)[1:medium.Constants.Nc, 1:medium.Constants.nphases],                                      [description = "molar source or sink - through surface in contact with other phases"]      
+    Nᵢ(t)[1:medium.Constants.Nc],                                                                  [description = "molar holdup"]
+    nᴸⱽ(t)[1:medium.Constants.nphases - 1],                                                        [description = "molar holdup in each phase, excluding the overall phase"]              
+    U(t),                                                                                          [description = "internal energy holdup"]                                               
+    p(t),                                                                                          [description = "pressure"]  
+    V(t)[1:medium.Constants.nphases],                                                              [description = "volume"]    
+    A(t),                                                                                          [description = "control volume area"]
+    Q(t),                                                                                          [description = "heat flux"]
+    Wₛ(t),                                                                                         [description = "shaft work"]
 end
 
-@named tank = HeatedTank_(medium = medium, Q̇ = 100.0, pressure = 1.01325e5, ṅ_out = 10.0)
-
-@component function PerfectFlowHeatedTank_(; medium, ṅ_in, ṅ_out, p, Q, name)
-
-    systems = @named begin
-        pT_Boundary = FixedBoundary_pTzn_(medium = medium, p = p, T = 300.15, z = [0.8, 0.2], ṅ = ṅ_in)
-        tank = HeatedTank_(medium = medium, Q̇ = Q, pressure = p, ṅ_out = ṅ_out)
-    end
-
-    vars = []
-
-    pars = []
-
-    connections = [
-                connect(pT_Boundary.OutPort, tank.InPort)
-                ]
-    
-    return ODESystem(connections, t, vars, pars; name = name, systems = [systems...])
-
-end
+D(U) ~ InPort.h[1]*InPort.ṅ[1] + OutPort.h[1]*(OutPort.ṅ[1]) + Q + Wₛ
+[D(Nᵢ[i]) ~ InPort.ṅ[1]*InPort.z[i, 1] + sum(dot(collect(OutPort.ṅ[2:end]), collect(OutPort.z[i:i, 2:end]))) + sum(collect(rᵥ[i, 2:end].*V[2:end])) + rₐ[i, 1]*A for i in 1:medium.Constants.Nc]
 
 
-@named WaterTank = PerfectFlowHeatedTank_(medium = medium, ṅ_in = 10.0, ṅ_out = 10.0, p = 1.01325e5, Q = 100.0)
+scalarize(sum(OutPort.ṅ[2:end].*OutPort.z[:, 2:end], dims = 2))
 
-sistem = structural_simplify(WaterTank)
+sum(dot(OutPort.ṅ[2:end], OutPort.z[i:i, 2:end]))
 
-length(alg_equations(sistem))
+scalarize(rᵥ[:, 1] .~ sum(collect(rᵥ[:, 2:end]), dims = 2)) =#
 
-equations(sistem)
-defaults(sistem)
-guesses_ = [
- sistem.tank.ControlVolumeState.z[1, 2] => 0.2, 
- sistem.tank.ControlVolumeState.z[2, 2] => 0.2, 
- sistem.tank.V[2] => 50.0,
-  sistem.tank.V[3] => 100.0,
-  sistem.tank.nᴸⱽ[2] => 50.0]
-
-u0 = [sistem.tank.Nᵢ[1] => 80.0, sistem.tank.Nᵢ[2] => 80.0,
- sistem.tank.ControlVolumeState.T => 300.0]
-
-prob = ODEProblem(sistem, u0, (0.0, 100.0), guesses = guesses_);
-ssprob = SteadyStateProblem(sistem, [guesses_...; u0])
-
-sol = solve(prob, Rodas42(autodiff = false))
-
-sol_ss = solve(ssprob, SSRootfind())
-
-plot(sol.t, sol[sistem.tank.ControlVolumeState.T])
-
-initialization_equations(sistem)
-equations(prob.f.initializationprob.f.sys)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-D(U) ~ InPort.h[1]*InPort.ṅ[1] + OutPort.h[1]*(OutPort.ṅ[1])
-
-scalarize(D(nᵢ[:, 1]) .~ InPort.ṅ[1].*InPort.z₁ + (OutPort.ṅ[2].*OutPort.z₂ + OutPort.ṅ[3].*OutPort.z₃) .+ collect(rᵥ[:, 2:end]*V[2:end]))
-
-scalarize(rᵥ[:, 1] .~ sum(collect(rᵥ[:, 2:end]), dims = 2))
-
-scalarize(rₐ[:, 1] .~ sum(collect(rₐ[:, 2:end]), dims = 2))
-
-scalarize(nᵢ[:, 1] .~ sum(collect(nᵢ[:, 2:end]), dims = 2))
-
-scalarize(sum(collect(ControlVolumeState.ϕ)) ~ 1.0)
-
-scalarize(ControlVolumeState.z .~ nᵢ ./ sum(collect(nᵢ), dims = 1))
-
-ControlVolumeState.p ~ p
-
-[ControlVolumeState.ϕ[j - 1] ~ sum(collect(nᵢ[:, j]), dims = 1)./sum(collect(nᵢ[:, 1]), dims = 1) for j in 2:medium.FluidConstants.nphases]
-
-U ~ (OutPort.h[1] - ControlVolumeState.p/ControlVolumeState.ρ[1])*sum(collect(nᵢ[:, 1])) 
-
-V[1] ~ sum(collect(V[2:end]))
-        
-V[2]*ControlVolumeState.ρ[2] ~ sum(collect(nᵢ[:, 2]))
-
-V[3]*ControlVolumeState.ρ[3] ~ sum(collect(nᵢ[:, 3]))
-        
-        
-# Outlet port properties
-
-[OutPort.h[j] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[j], ControlVolumeState.T, collect(ControlVolumeState.z[:, j])) for j in 2:medium.FluidConstants.nphases]
-        
-OutPort.h[1] ~ dot(collect(OutPort.h[2:end]), collect(ControlVolumeState.ϕ))
-         
-OutPort.p ~ ControlVolumeState.p
-
-scalarize(OutPort.z₁ .~ ControlVolumeState.z[:, 1])
-scalarize(OutPort.z₂ .~ ControlVolumeState.z[:, 2])
-scalarize(OutPort.z₃ .~ ControlVolumeState.z[:, 3])

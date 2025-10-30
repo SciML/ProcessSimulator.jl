@@ -2,10 +2,7 @@ using ProcessSimulator
 using Test
 using SafeTestsets
 
-@safetestset "Base components" begin
-     include("base/simple_steady_state.jl")
+@safetestset "Valve" begin
+     include("base/valve_test.jl")
 end
 
-@safetestset "Reactors" begin
-     include("reactors/simple_cstr.jl")
-end
