@@ -85,7 +85,7 @@ function Base.show(io::IO, valve::Valve)
     println(io, "\nThermodynamic State Guess:")
     println(io, "    • Pressure: $(valve.state.p) Pa")
     println(io, "    • Temperature: $(valve.state.T) K")
-    println(io, "    • Composition: $(valve.state.z)")
+    println(io, "    • Composition: $(valve.state.N ./ sum(valve.state.N))")
     
     # Density information from medium's guesses if available
     if hasproperty(valve.medium, :Guesses) && hasproperty(valve.medium.Guesses, :ρ)

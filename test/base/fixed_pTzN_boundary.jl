@@ -1,17 +1,18 @@
+using ProcessSimulator
 using ModelingToolkit
 using Clapeyron
-using LinearAlgebra
 using ModelingToolkit: t_nounits as t, D_nounits as D
 using ModelingToolkit: scalarize, equations, get_unknowns
 using NonlinearSolve
 using OrdinaryDiffEq
+using EntropyScaling
 
 #Building media
 components = ["carbon dioxide", "methane"]
 
-model = SRK(components, idealmodel = ReidIdeal)
+#model = SRK(components, idealmodel = ReidIdeal)
 
-#model = ReidIdeal(components)
+model = ReidIdeal(components)
 
 p__ = 1.0*101325.0 # Pa
 T__ = 273.15 + 25.0 # K
@@ -21,22 +22,7 @@ masstransfermodel = ConstantMassTransferCoeff([5e-1, 3e-1]); #This assumes the s
 heat_transfer_model = ConstantHeatTransferCoeff(10.0);
 viscosity_model = ChapmanEnskogModel(components, ref = "Poling et al. (2001)")
 fluid_transport_model = TransportModel(masstransfermodel, heat_transfer_model, viscosity_model)
-medium = EoSBased(components = components, eosmodel = model, transportmodel = fluid_transport_model, state = pTzState(p__, T__, z__))
-
-
-### ------ Reservoir test
-
-@named reservoir = FixedBoundary_pTzn_(medium = medium, p = p__, T = T__, z = z__, flowrate = -5e-4, flowbasis = :volume)
-@named sink = ConnHouse(medium = medium)
-
-connections = [connect(reservoir.OutPort, sink.port)]
-
-@named sys = System(connections, t; systems = [reservoir, sink])
-
-prob = NonlinearProblem(simple_stream, guesses(simple_stream))
-@time sol = solve(prob, RobustMultiNewton())
-sol[reservoir.ControlVolumeState.ϕ]
-
+medium = EoSBased(components = components, eosmodel = model, transportmodel = fluid_transport_model)
 
 
 
@@ -44,6 +30,7 @@ sol[reservoir.ControlVolumeState.ϕ]
 ## Solid Eos
 adsorbenteos = SolidEoSModel(750.0, 273.15, [0.0, 0.0, 0.0, 0.0], 0.0, 273.15, [935.0, 0.0, 0.0, 0.0]) #J/kg/K
 
+using Langmuir
 # Isotherm
 iso_c1 = LangmuirS1(1e-8, 1e-8, -30_000.1456)
 iso_c2 = LangmuirS1(10.0, 1e-9, -30_000.1456)

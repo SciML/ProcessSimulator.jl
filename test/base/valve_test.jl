@@ -7,7 +7,7 @@ using Test
 
 
 
-@testset "isenthalpic valve" begin
+#= @testset "isenthalpic valve" begin =#
 #Building media
 components = ["carbon dioxide", "methane"]
 
@@ -22,7 +22,7 @@ medium = EoSBased(components = components, eosmodel = model)
 @named S1 = FixedBoundary_pTz_(medium = medium, p = p__, T = T__, z = z__)
 
 @named V1 = Valve(medium = medium, 
-state_guess = pTzState(0.5*p__, T__, z__),
+state = pTNVState(0.5*p__, T__, z__),
 Cv = 4.4e-6,
 f = x -> x/sqrt(abs(x) + 1e-8),
 flowrate_guess = 1e-3,
@@ -53,4 +53,4 @@ reference_T_valve_out = 290.39815
 
 @test abs(reference_T_valve_out - T_valve_out)/reference_T_valve_out < 0.05
 
-end
+#= end =#

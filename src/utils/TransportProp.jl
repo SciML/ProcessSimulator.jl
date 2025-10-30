@@ -44,3 +44,5 @@ end
 function TransportModel(masstransfermodel, heattransfermodel, viscositymodel)
     return TransportModel(masstransfermodel, heattransfermodel, viscositymodel, nothing, nothing)
 end
+
+export HomogeneousDiffusivityCoeff, ConstantHeatTransferCoeff, ConstantMassTransferCoeff, TransportModel
