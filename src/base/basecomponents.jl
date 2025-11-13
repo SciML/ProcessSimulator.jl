@@ -448,6 +448,7 @@ end
 
         LiquidOutPort.ṅ[2] ~ LiquidOutPort.ṅ[1]
         LiquidOutPort.ṅ[3] ~ 1e-10
+        LiquidOutPort.ṅ[1] ~ InPort.ṅ[1]*ControlVolumeState.ϕ[1]
 
         # Vapor outlet properties
         VaporOutPort.h[2] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[2], ControlVolumeState.T, collect(ControlVolumeState.z[:, 2]))
@@ -461,6 +462,7 @@ end
 
         VaporOutPort.ṅ[3] ~ VaporOutPort.ṅ[1]
         VaporOutPort.ṅ[2] ~ 1e-10
+        VaporOutPort.ṅ[1] ~ InPort.ṅ[1]*(ControlVolumeState.ϕ[2])
     ]
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems = [systems...])

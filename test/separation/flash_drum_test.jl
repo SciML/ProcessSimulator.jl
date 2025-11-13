@@ -24,12 +24,13 @@ medium = EoSBased(components = components, eosmodel = model)
     flowbasis = :molar
 )
 
+#This is just a guess as in a flowsheet the real composition will depend on downstream conditions
 flash_state = pTNVState(2.5*101325.0, 315.87, [0.2379, 0.3082, 0.09959, 0.1373, 0.08872, 0.1283], base = :Pressure)
 
 @named FL1 = FixedPressureSteadyStateFlashDrum(
     medium = medium,
     state = flash_state,
-    pressure = 2.5*101325.0,
+    pressure = flash_state.p,
     Q = 0.0
 )
 
