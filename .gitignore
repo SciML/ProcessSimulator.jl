@@ -5,4 +5,6 @@
 /docs/build/
 Manifest.toml
 .vscode/
+ManualEML.pdf
+src/separation/steady_flash.md
 

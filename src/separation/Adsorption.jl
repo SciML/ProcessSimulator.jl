@@ -1,3 +1,5 @@
+abstract type AbstractAdsorber end
+
 @component function AdsorptionInterface(;fluidmedium, solidmedium, adsorbentmass, name)
 
     systems = @named begin
@@ -25,15 +27,55 @@ end
 
 
 
-@component function WellMixedAdsorber(;fluidmedium, solidmedium, porosity, V, p, phase, name)
+mutable struct WellMixedAdsorber{FM <: AbstractFluidMedium, SM <: AbstractFluidMedium, S <: AbstractThermodynamicState} <: AbstractAdsorber
+    fluidmedium::FM
+    solidmedium::SM
+    state::S
+    phase::String
+    odesystem
+    model_type::Symbol
+end
+
+"""
+    WellMixedAdsorber(; fluidmedium, solidmedium, state, porosity, V, name)
+
+Creates a well-mixed adsorber with fluid and solid phases in equilibrium.
+
+# Arguments
+- `fluidmedium`: Fluid medium specification
+- `solidmedium`: Solid/adsorbent medium specification
+- `state`: Thermodynamic state for the fluid phase
+- `porosity`: Bed porosity (void fraction)
+- `V`: Total volume [m³]
+- `name`: Component name
+
+# Returns
+- `WellMixedAdsorber` struct with embedded ODESystem and model_type = :Adsorber
+"""
+function WellMixedAdsorber(; fluidmedium, solidmedium, state::S, porosity, V, name) where S <: AbstractThermodynamicState
+    # Use resolve_guess! to update fluidmedium and state
+    fluidmedium, state, phase = resolve_guess!(fluidmedium, state)
+
+    # Extract pressure from state
+    p = state.p
+
+    odesystem = WellMixedAdsorber_Model(fluidmedium = fluidmedium, solidmedium = solidmedium,
+                                        porosity = porosity, V = V, p = p, phase = phase, name = name)
+
+    return WellMixedAdsorber(fluidmedium, solidmedium, state, phase, odesystem, :Adsorber)
+end
+
+@component function WellMixedAdsorber_Model(;fluidmedium, solidmedium, porosity, V, p, phase, name)
  
     mass_of_adsorbent = V * solidmedium.EoSModel.ρ_T0 * porosity
     A  = V*(1.0 - porosity)*area_per_volume(solidmedium) #Interfacial area
 
     systems = @named begin
+
         mobilephase = TwoPortControlVolume_(medium = fluidmedium)
         stationaryphase = ClosedControlVolume_(medium = solidmedium)
         interface = AdsorptionInterface(fluidmedium = fluidmedium, solidmedium = solidmedium, adsorbentmass = mass_of_adsorbent)
+        
     end
 
     eqs = [
@@ -51,7 +93,7 @@ end
         scalarize(interface.SolidSurface.OutPort.T ~ stationaryphase.ControlVolumeState.T)
 
         # Heat and mass transfer
-        stationaryphase.Q ~ interface.SolidSurface.InPort.ϕₕ*A + sum(-collect(isosteric_heat(adsorbent.isotherm, interface.FluidSurface.OutPort.μ, interface.FluidSurface.OutPort.T).*stationaryphase.rₐ[:, end]))
+        stationaryphase.Q ~ interface.SolidSurface.InPort.ϕₕ*A + sum(-collect(isosteric_heat(solidmedium.isotherm, interface.FluidSurface.OutPort.μ, interface.FluidSurface.OutPort.T).*stationaryphase.rₐ[:, end]))
         scalarize(stationaryphase.rₐ[:, end] .~ interface.SolidSurface.InPort.ϕₘ)...
 
         # No Volumetric sink/source constraints
@@ -77,7 +119,7 @@ end
             scalarize(mobilephase.rₐ[:, 2] .~ interface.FluidSurface.OutPort.ϕₘ*A)...
             scalarize(mobilephase.rₐ[:, end] .~ 0.0)...
 
-            scalarize(mobilephase.ControlVolumeState.z[:, end] .~ flash_mol_fractions_vapor(medium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1])))...
+            scalarize(mobilephase.ControlVolumeState.z[:, end] .~ flash_mol_fractions_vapor(fluidmedium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1])))...
 
             scalarize(interface.FluidSurface.InPort.μ .~ mobilephase.nᴸⱽ[1]/mobilephase.V[2])... #This is phase specific
 
@@ -93,7 +135,7 @@ end
             scalarize(mobilephase.rₐ[:, 2] .~ 0.0)...
             scalarize(mobilephase.rₐ[:, end] .~ interface.FluidSurface.OutPort.ϕₘ*A)...
             
-            scalarize(mobilephase.ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(medium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1])))...
+            scalarize(mobilephase.ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(fluidmedium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1])))...
 
             scalarize(interface.FluidSurface.InPort.μ .~ mobilephase.ControlVolumeState.p*mobilephase.ControlVolumeState.z[:, end])... #Partial pressure in vapor phase/rigorously is fugacity
 
@@ -110,3 +152,5 @@ end
     return System([eqs...; phase_eqs...], t, collect(Iterators.flatten(vars)), pars; name, systems = systems)
 
 end
+
+export WellMixedAdsorber, WellMixedAdsorber_Model, AdsorptionInterface

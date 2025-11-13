@@ -65,11 +65,11 @@ end
     vars = []
 
     systems = @named begin
-        port = PhZConnector_(medium = medium)
+        Port = PhZConnector_(medium = medium)
     end
 
     eqs = [
-          port.ṅ[1] ~ XtoMolar(flowrate, medium, nothing, flowbasis)
+          Port.ṅ[1] ~ XtoMolar(flowrate, medium, nothing, flowbasis)
         ]
 
     ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; systems, name)
@@ -428,8 +428,8 @@ end
         [Nᵢ[i] ~ sum(dot(nᴸⱽ, collect(ControlVolumeState.z[i, 2:end]))) for i ∈ 1:medium.Constants.Nc]...
         scalarize(sum(Nᵢ) ~ sum(nᴸⱽ))
 
-        scalarize(ControlVolumeState.z[:, 1] .~ Nᵢ ./ (sum(collect(Nᵢ)) + 1e-10))...
-        ControlVolumeState.ϕ[1] ~ nᴸⱽ[1]/(sum(collect(nᴸⱽ)) + 1e-10)
+        scalarize(ControlVolumeState.z[:, 1] .~ Nᵢ ./ (sum(collect(Nᵢ))))...
+        ControlVolumeState.ϕ[1] ~ nᴸⱽ[1]/(sum(collect(nᴸⱽ)))
 
         # Control Volume properties
         V[1] ~ sum(collect(V[2:end]))

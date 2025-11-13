@@ -1,6 +1,6 @@
 name = "ProcessSimulator"
 uuid = "8886c03b-4dde-4be1-b6ee-87d056f985b8"
-authors = ["Vinicius Viena Santana"]
+authors = ["Vinicius Viena Santana", "Avinash Subramanian", "Chris Rackauckas"]
 version = "0.0.1-DEV"
 
 [deps]

@@ -48,7 +48,7 @@ connection_set = [
 
 @named sys = System(connection_set, t, [], []; systems = [S1.odesystem, R1.odesystem, sink])
 
-AdiabaticVolumeReactor = mtkcompile(sys)
+AdiabaticVolumeReactor = mtkcompile(sys, use_scc = true)
 
 default_guesses = guesses(AdiabaticVolumeReactor)
 guesses_Reactor = Dict(

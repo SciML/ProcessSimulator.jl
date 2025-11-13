@@ -44,7 +44,7 @@ simple_sys = mtkcompile(sys)
 u0 = [V1.odesystem.opening => 0.5]
 valve_guesses = [V1.odesystem.InPort.ṅ[1] => V1.molar_flowrate_guess]
 prob = ODEProblem(simple_sys, u0, (0.0, 0.001), guesses = valve_guesses, use_scc = false)
-sol = solve(prob, FBDF(autodiff = false), abstol = 1e-6, reltol = 1e-6)
+@time sol = solve(prob, FBDF(autodiff = false), abstol = 1e-6, reltol = 1e-6)
 
 
 T_valve_out = first(sol[V1.odesystem.ControlVolumeState.T]) 

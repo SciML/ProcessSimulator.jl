@@ -102,9 +102,12 @@ function SteadyStateCSTR(;medium, reactionset, limiting_reactant, state, W, Q, n
     odesystem = SteadyStateCSTRModel(medium = medium, reactions = reactionset, 
     limiting_reactant = limiting_reactant, state = state, W = W, Q = Q, phase = phase, name = name)
 
-    if !isnothing(Q) #If heat is given use, else fix temperature and calculate heat
-        q_eq = [odesystem.Q ~ Q]
-    else    
+    _Q = copy(Q)
+
+    if !isnothing(_Q)            #If heat is given use, else fix temperature and calculate heat
+        @unpack Q = odesystem
+        q_eq = [Q ~ _Q]
+    else
         @unpack ControlVolumeState = odesystem
         q_eq = [ControlVolumeState.T ~ state.T]
     end
@@ -113,10 +116,11 @@ function SteadyStateCSTR(;medium, reactionset, limiting_reactant, state, W, Q, n
     return SteadyStateCSTR(medium, state, reactionset, phase, newsys, :CSTR)
 end
 
-function ConversionSteadyStateCSTR(; medium, reactionset, limiting_reactant, state, W, Q, conversion, name)
+function ConversionSteadyStateCSTR(; medium, reactionset, limiting_reactant, state, W, Q, conversion = 0.5, name)
     cstr = SteadyStateCSTR(medium = medium, reactionset = reactionset, limiting_reactant = limiting_reactant, state = state, W = W, Q = Q, name = name)
     odesys = cstr.odesystem
-    newsys = extend(System([odesys.X ~ conversion], t, [], []; name), odesys)
+    @unpack X, ControlVolumeState = odesys
+    newsys = extend(System([X ~ conversion, ControlVolumeState.p ~ cstr.state.p], t, [], []; name), odesys)
     cstr.odesystem = newsys
     return SteadyStateCSTR(cstr.medium, cstr.state, cstr.reactionset, cstr.phase, cstr.odesystem, :CSTR)
 end
@@ -124,8 +128,8 @@ end
 function FixedVolumeSteadyStateCSTR(; medium, reactionset, limiting_reactant, state, W, Q, volume, name) #Overwrites state volume and recalculate number of moles
     cstr = SteadyStateCSTR(medium = medium, reactionset = reactionset, limiting_reactant = limiting_reactant, state = state, W = W, Q = Q, name = name)
     odesys = cstr.odesystem
-    @unpack V = odesys
-    newsys = extend(System([V[1] ~ volume], t, [], []; name), odesys) #Fix overall volume to be V
+    @unpack V, ControlVolumeState = odesys
+    newsys = extend(System([V[1] ~ volume, ControlVolumeState.p ~ cstr.state.p], t, [], []; name), odesys) #Fix overall volume to be V
     cstr.odesystem = newsys
     return SteadyStateCSTR(cstr.medium, cstr.state, cstr.reactionset, cstr.phase, cstr.odesystem, :CSTR)
 end
@@ -147,7 +151,7 @@ end
         Wₛ ~ W
         scalarize(rₐ[:, 2:end] .~ 0.0)...
         U ~ (OutPort.h[1] - ControlVolumeState.p/ControlVolumeState.ρ[1])*sum(collect(Nᵢ))
-        ControlVolumeState.p ~ state.p
+        
     ]
 
     limiting_index = findfirst(x -> x == limiting_reactant, medium.Constants.iupacName)
@@ -182,7 +186,7 @@ end
             scalarize(X ~ (InPort.ṅ[3].*InPort.z[limiting_index, 3] .+ OutPort.ṅ[3].*OutPort.z[limiting_index, 3])./(InPort.ṅ[3].*InPort.z[limiting_index, 3] .+ 1e-8))
 
         ]
-        
+
     end
 
     pars = []

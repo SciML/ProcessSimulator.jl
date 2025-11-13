@@ -68,3 +68,70 @@ end
 
 
 export DynamicFlashDrum
+
+
+# ==================== Steady-State Flash Drum ====================
+
+mutable struct SteadyStateFlashDrum{M <: AbstractFluidMedium, S <: AbstractThermodynamicState} <: AbstractSeparator
+    medium::M
+    state::S
+    odesystem
+end
+
+function SteadyStateFlashDrum(; medium, state, Q, name)
+    medium, state, phase = resolve_guess!(medium, state)
+    odesystem = SteadyStateFlashDrumModel(medium = medium, state = state, Q = Q, name = name)
+    _Q = copy(Q)
+
+    if !isnothing(_Q)
+        @unpack Q = odesystem
+        q_eq = [Q ~ _Q]
+    else
+        @unpack ControlVolumeState = odesystem
+        q_eq = [ControlVolumeState.T ~ state.T]
+    end
+    
+    newsys = extend(System(q_eq, t, [], []; name), odesystem)
+    return SteadyStateFlashDrum(medium, state, newsys)
+end
+
+function FixedPressureSteadyStateFlashDrum(; medium, state, Q, pressure, name)
+    flash = SteadyStateFlashDrum(medium = medium, state = state, Q = Q, name = name)
+    odesys = flash.odesystem
+    @unpack ControlVolumeState = odesys
+    newsys = extend(System([ControlVolumeState.p ~ pressure], t, [], []; name), odesys)
+    flash.odesystem = newsys
+    return SteadyStateFlashDrum(flash.medium, flash.state, flash.odesystem)
+end
+
+@component function SteadyStateFlashDrumModel(; medium, state, Q = nothing, name)
+
+    @named CV = ThreePortControlVolume_SteadyState(medium = medium)
+    @unpack U, Nᵢ, V, nᴸⱽ, InPort, LiquidOutPort, VaporOutPort, ControlVolumeState, rₐ, rᵥ, Wₛ = CV
+
+    vars = []
+
+    pars = []
+
+    # Basic equations
+    eqs = [
+        # No reactions or surface mass transfer
+        scalarize(rₐ[:, 2:end] .~ 0.0)...
+        scalarize(rᵥ[:, 2:end] .~ 0.0)...
+
+        # No shaft work in flash drum
+        Wₛ ~ 0.0
+
+        # Vapor-liquid equilibrium
+        scalarize(ControlVolumeState.z[:, end] .~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...
+
+        # Internal energy definition (both phases)
+        U ~ (LiquidOutPort.h[2] - ControlVolumeState.p/ControlVolumeState.ρ[2])*nᴸⱽ[1] +
+            (VaporOutPort.h[3] - ControlVolumeState.p/ControlVolumeState.ρ[3])*nᴸⱽ[2]
+    ]
+
+    return extend(System([eqs...], t, collect(Iterators.flatten(vars)), pars; name), CV)
+end
+
+
+export SteadyStateFlashDrum, FixedPressureSteadyStateFlashDrum

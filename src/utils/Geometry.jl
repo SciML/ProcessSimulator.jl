@@ -26,3 +26,5 @@ end
 function cross_section_area_(tank::CylindricalTank)
     return π*(tank.D/2)^2
 end
+
+export CylindricalTank, volume_, surface_area_, cross_section_area_, discretize!

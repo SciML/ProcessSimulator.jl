@@ -106,6 +106,6 @@ function heat_transfer_coefficient(solid::A, T = 273.15, x = ones(adsorbent.Cons
     return heat_transfer_coefficient(solid.TransportModel.HeatTransferModel, solid, T, x)
 end
 
-export SolidEoSModel, Adsorbent
+export SolidEoSModel, Adsorbent, area_per_volume
 
 
