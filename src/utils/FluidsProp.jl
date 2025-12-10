@@ -250,6 +250,8 @@ function resolve_guess!(medium, state)
         phase = ifelse(medium.Guesses.ϕ[2] ≈ 1.0, "vapor", "liquid")
         state.p = medium.Guesses.p
     else
+        # Both p and V are available - still update guesses with current composition
+        medium.Guesses = EosBasedGuesses(medium.EoSModel, p, T, z, Val(:Pressure))
         phase = ifelse(medium.Guesses.ϕ[2] ≈ 1.0, "vapor", "liquid")
     end
     return medium, state, phase

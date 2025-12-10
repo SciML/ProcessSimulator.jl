@@ -102,9 +102,10 @@ function SteadyStateCSTR(;medium, reactionset, limiting_reactant, state, W, Q, n
     odesystem = SteadyStateCSTRModel(medium = medium, reactions = reactionset, 
     limiting_reactant = limiting_reactant, state = state, W = W, Q = Q, phase = phase, name = name)
 
-    _Q = copy(Q)
+    
 
-    if !isnothing(_Q)            #If heat is given use, else fix temperature and calculate heat
+    if !isnothing(Q)            #If heat is given use, else fix temperature and calculate heat
+        _Q = copy(Q)
         @unpack Q = odesystem
         q_eq = [Q ~ _Q]
     else

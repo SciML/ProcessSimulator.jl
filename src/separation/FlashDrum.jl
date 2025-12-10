@@ -81,9 +81,9 @@ end
 function SteadyStateFlashDrum(; medium, state, Q, name)
     medium, state, phase = resolve_guess!(medium, state)
     odesystem = SteadyStateFlashDrumModel(medium = medium, state = state, Q = Q, name = name)
-    _Q = copy(Q)
-
-    if !isnothing(_Q)
+    
+    if !isnothing(Q)
+        _Q = copy(Q)
         @unpack Q = odesystem
         q_eq = [Q ~ _Q]
     else

@@ -80,15 +80,14 @@ function PS.TP_flash(EoSModel::M, p, T, x; nonvolatiles = nothing, noncondensabl
 
     if PS.is_stable(EoSModel, p, T, _x)
 
-        v = Clapeyron.volume(EoSModel, p, T, _x, phase = :unknown)
+        #v = Clapeyron.volume(EoSModel, p, T, _x, phase = :unknown)
         #vv_ideal = Clapeyron.volume(Clapeyron.idealmodel(EoSModel), p, T, _x)
 
-        if p*v/(8.314*T) ≥ 0.5 #Very rought test for compressibility factor
+        if Clapeyron.identify_phase(EoSModel, p, T, _x) == :vapour
             xᵢⱼ = [_x _x]
             ϕ = [0.0, 1.0]
 
             else
-
             xᵢⱼ = [_x _x]
             ϕ = [1.0, 0.0]
         end
@@ -208,6 +207,8 @@ Symbolics.@register_array_symbolic PS.flash_vaporized_fraction(model::Clapeyron.
     size = (2,)
     eltype = eltype(arr)
 end
+
+@register_symbolic PS.is_stable(model::Clapeyron.EoSModel, p, T, arr::AbstractVector)
 
 @register_symbolic PS.ρT_enthalpy(model::Clapeyron.EoSModel, ρ, T, arr::AbstractVector)
 
