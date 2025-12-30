@@ -1,7 +1,7 @@
 name = "ProcessSimulator"
 uuid = "8886c03b-4dde-4be1-b6ee-87d056f985b8"
 authors = ["Chris Rackauckas", "Vinicius Viena Santana", "Sebastian Schmitt", "Andrés Riedemann", "Pierre Walker", "Avinash Subramanian"]
-version = "1.0.0-DEV"
+version = "1.0.0"
 
 [deps]
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
