@@ -8,14 +8,17 @@ using Test
 thermal_fluid_model = IAPWS95()
 substances = ["water"]
 
-@named source = MaterialSource(; substances_user = substances,
+@named source = MaterialSource(;
+    substances_user = substances,
     model = thermal_fluid_model,
-    P_user = 2*101325.0, T_user = 288.7,
+    P_user = 2 * 101325.0, T_user = 288.7,
     Fₜ_user = 126.0,
     zₜ_user = [1.0],
-    guesses = Dict((:zᵂⱼᵢ) => ones(3, 1)*0.25))
+    guesses = Dict((:zᵂⱼᵢ) => ones(3, 1) * 0.25)
+)
 
-@named J_101 = Jacket(; substances_user = substances,
+@named J_101 = Jacket(;
+    substances_user = substances,
     phase = :liquid,
     thermal_fluid_model = thermal_fluid_model,
     heat_transfer_coef = 914.0
@@ -27,8 +30,10 @@ energy_source = [energy_con.T ~ 350.0, energy_con.A ~ 9.23]
 energy_source_to_J_101 = [connect(energy_con, J_101.EnergyCon)]
 source_to_J_101 = [connect(source.Out, J_101.In)]
 
-flowsheet = ODESystem([energy_source...; energy_source_to_J_101...; source_to_J_101...],
-    t; name = :mycon, systems = [source, J_101, energy_con])
+flowsheet = ODESystem(
+    [energy_source...; energy_source_to_J_101...; source_to_J_101...],
+    t; name = :mycon, systems = [source, J_101, energy_con]
+)
 flowsheet_ = structural_simplify(flowsheet)
 
 variables = get_unknowns(flowsheet_)
