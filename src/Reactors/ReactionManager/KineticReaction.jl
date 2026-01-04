@@ -13,12 +13,14 @@ end
 # Construtor para aceitar palavras-chave
 function KineticReactionNetwork(;
         Coef_Cr::Union{Vector{T}, Matrix{T}}, Do_r::Union{Vector{T}, Matrix{T}},
-        substances_user::Vector{String}, Af_r::T, Ef_r::T, name::String) where {T}
+        substances_user::Vector{String}, Af_r::T, Ef_r::T, name::String
+    ) where {T}
     Nc = length(substances_user)
     Nri = Coef_Cr isa Matrix ? size(Coef_Cr, 1) : length(Coef_Cr)
 
     return KineticReactionNetwork{T}(
-        Coef_Cr, Do_r, substances_user, Nc, Nri, Af_r, Ef_r, name)
+        Coef_Cr, Do_r, substances_user, Nc, Nri, Af_r, Ef_r, name
+    )
 end
 
 export KineticReactionNetwork

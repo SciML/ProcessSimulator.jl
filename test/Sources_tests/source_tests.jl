@@ -11,12 +11,14 @@ properties = Dict(subs => load_component_properties(subs) for subs in substances
 idealmodel = ReidIdeal(substances; userlocations = read_reidcp(properties, substances))
 PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
 
-@named source = MaterialSource(; substances_user = substances,
+@named source = MaterialSource(;
+    substances_user = substances,
     model = PCSAFT_model,
     P_user = 101325, T_user = 297.0,
-    Fₜ_user = (36.3 + 453.6 + 45.4)*1e3/3600,
+    Fₜ_user = (36.3 + 453.6 + 45.4) * 1.0e3 / 3600,
     zₜ_user = [0.8473, 1.0 - (0.0678 + 0.8473), 0.0, 0.0678],
-    guesses = Dict((:zᵂⱼᵢ) => ones(3, 4)/0.25))
+    guesses = Dict((:zᵂⱼᵢ) => ones(3, 4) / 0.25)
+)
 
 #@named myDisplay = Display(; Nc = 4)
 

@@ -18,7 +18,7 @@ struct MaterialSource <: AbstractMaterialSource
     VT_enthalpy::Function           # Enthalpy function (defined as f(ϱ,T,xᵢ;kwargs...)) in J/mol
     VT_entropy::Function            # Entropy function (defined as f(ϱ,T,xᵢ;kwargs...)) in J/(mol K)
     tp_flash::Function              # Flash function (defined as f(p,T,xᵢ;kwargs...))
-    reaction::Vector{Reaction}      # Reaction struct 
+    reaction::Vector{Reaction}      # Reaction struct
 end
 
 function MaterialSource(components::Union{String, Vector{String}}; kwargs...)
@@ -26,8 +26,10 @@ function MaterialSource(components::Union{String, Vector{String}}; kwargs...)
 
     # Check for mandatory keyword arguments
     mandatory = [:Mw, :molar_density, :VT_enthalpy]
-    [haskey(kwargs, k) || throw(ArgumentError("Missing keyword argument $k"))
-     for k in mandatory]
+    [
+        haskey(kwargs, k) || throw(ArgumentError("Missing keyword argument $k"))
+            for k in mandatory
+    ]
 
     N_c = length(components)
     length(kwargs[:Mw]) == N_c ||
@@ -36,7 +38,7 @@ function MaterialSource(components::Union{String, Vector{String}}; kwargs...)
 
     f_NA(field) = error("Function $field not defined in MaterialSource")
 
-    MaterialSource(
+    return MaterialSource(
         name,
         components,
         N_c,

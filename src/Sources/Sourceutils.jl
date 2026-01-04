@@ -5,12 +5,12 @@
         F(t), [description = "Molar Flow rate (mol/s)", output = true]
         H(t), [description = "Enthalpy (J/mol)", output = true]
         (z₁(t))[1:Nc],
-        [description = "component molar fraction global (mol/mol)", output = true]
+            [description = "component molar fraction global (mol/mol)", output = true]
         (z₂(t))[1:Nc],
-        [description = "component molar fraction in vapor phase (mol/mol)", output = true] # 
+            [description = "component molar fraction in vapor phase (mol/mol)", output = true] #
         (z₃(t))[1:Nc],
-        [description = "component molar fraction in liquid phase (mol/mol)", output = true] #  
-        α_g(t), [description = "gas phase fraction (mol/mol)", output = true] #  
+            [description = "component molar fraction in liquid phase (mol/mol)", output = true] #
+        α_g(t), [description = "gas phase fraction (mol/mol)", output = true] #
     end
 
     ODESystem(Equation[], t, collect(Iterators.flatten(vars)), []; name)
