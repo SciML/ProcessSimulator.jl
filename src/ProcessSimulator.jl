@@ -14,6 +14,10 @@ include("fluid_handling/compressors.jl")
 include("fluid_handling/heat_exchangers.jl")
 
 # Reactors
+include("reactors/types.jl")
+include("reactors/reaction_sets.jl")
 include("reactors/CSTR.jl")
+include("reactors/PFR.jl")
+include("reactors/GibbsReactor.jl")
 
 end
