@@ -9,3 +9,7 @@ end
 @safetestset "Reactors" begin
     include("reactors/simple_cstr.jl")
 end
+
+@safetestset "Reactor Types" begin
+    include("reactors/reactor_types_test.jl")
+end
