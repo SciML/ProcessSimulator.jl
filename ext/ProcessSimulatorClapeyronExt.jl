@@ -32,14 +32,14 @@ function PS.EosBasedGuesses(EoSModel::M, V::K, T::K, N::D, ::Val{:Volume}) where
     ρ = zeros(K, 3)
     h = zeros(K, 3)
 
-    res = Clapeyron.vt_flash(EoSModel, V, T, N)
+    res = PS.VT_flash(EoSModel, V, T, N)
     nphases = length(res.compositions)
     _x = N./sum(N)
     p = pressure(res)
 
     if nphases ≤ 1
         v = first(res.volumes)
-        z_xᵢⱼ = vcat(_x, _x, _x)
+        z_xᵢⱼ = hcat(_x, _x, _x)
         h .= Clapeyron.VT_enthalpy(EoSModel, v, T, _x)
         ρ .= 1.0/v
         if p*v/(8.314*T) ≥ 0.5 #Very rought test for compressibility factor
@@ -75,13 +75,8 @@ function PS.TP_flash(EoSModel::M, p, T, x; nonvolatiles = nothing, noncondensabl
 
     _x = abs.(x)
 
-    #abs(v - vv_ideal) ≤ 1e-3
-    #p*v/(8.314*T) ≥ 0.52
 
     if PS.is_stable(EoSModel, p, T, _x)
-
-        #v = Clapeyron.volume(EoSModel, p, T, _x, phase = :unknown)
-        #vv_ideal = Clapeyron.volume(Clapeyron.idealmodel(EoSModel), p, T, _x)
 
         if Clapeyron.identify_phase(EoSModel, p, T, _x) == :vapour
             xᵢⱼ = [_x _x]
@@ -103,6 +98,15 @@ function PS.TP_flash(EoSModel::M, p, T, x; nonvolatiles = nothing, noncondensabl
         return (ϕ, [_x xᵢⱼ])  
 end
 
+
+function PS.VT_flash(EoSModel::M, V, T, x) where M <: Clapeyron.EoSModel
+    return Clapeyron.vt_flash(EoSModel, V, T, x)
+end
+
+function PS.VT_flash(EoSModel::M, V, T, x) where M <: Clapeyron.IdealModel
+    p = pressure(EoSModel, V, T, x)
+    return Clapeyron.FlashResult(EoSModel, p, T, x)
+end
 
 
 function PS.TP_flash(EoSModel::M, p, T, x; nonvolatiles = nothing, noncondensables = nothing) where M <: Clapeyron.CompositeModel

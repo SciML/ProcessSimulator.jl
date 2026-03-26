@@ -1,6 +1,6 @@
 name = "ProcessSimulator"
 uuid = "8886c03b-4dde-4be1-b6ee-87d056f985b8"
-authors = ["Vinicius Viena Santana", "Avinash Subramanian", "Chris Rackauckas"]
+authors = ["Vinicius Viena Santana", "Avinash Subramanian", "Sebastian Schmitt", "Chris Rackauckas"]
 version = "0.0.1-DEV"
 
 [deps]
@@ -13,12 +13,15 @@ UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [weakdeps]
 Clapeyron = "7c7805af-46cc-48c9-995b-ed0ed2dc909a"
+Langmuir = "c62cc850-d7ca-4cc1-a95b-48008b40dc90"
 
 [extensions]
 ProcessSimulatorClapeyronExt = "Clapeyron"
+LangmuirExt = "Langmuir"
 
 [compat]
 Clapeyron = "0.6.16"
+Langmuir = "0.1.2"
 LinearAlgebra = "1.11.0"
 PrettyTables = "2.4.0"
 Printf = "1.11.0"
@@ -31,4 +34,4 @@ SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "SafeTestsets", "Clapeyron", "OrdinaryDiffEq"]
+test = ["Test", "SafeTestsets", "Clapeyron"]

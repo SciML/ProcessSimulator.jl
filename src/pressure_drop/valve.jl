@@ -14,7 +14,7 @@ mutable struct Valve{M <: AbstractFluidMedium, C <: Real, F <: Function, S <: Ab
 end
 
 
-function Valve(; medium, state::S, Cv, f, flowrate_guess = 1.0, flowbasis = :volume, name) where S <: AbstractThermodynamicState
+function Valve(; medium, state::S, Cv, f::Function, flowrate_guess = 1.0, flowbasis = :volume, name) where S <: AbstractThermodynamicState
     # Use resolve_guess! to update medium and state (consistent with CSTR and Boundary_pTzn)
     medium, state, phase = resolve_guess!(medium, state)
 
@@ -26,137 +26,91 @@ function Valve(; medium, state::S, Cv, f, flowrate_guess = 1.0, flowbasis = :vol
     flowstate = rhoTzState(medium.Guesses.ρ[1], T, z)
     opening_setpoint = 0.5
     molar_flowrate_guess = XtoMolar(flowrate_guess, medium, flowstate, flowbasis)
-    odesystem = Valve_(medium = medium, Cv = Cv, ΔP_f = f, setpoint = opening_setpoint, phase = phase, name = name)
+    odesystem = Valve__(medium = medium, Cv = Cv, ΔP_f = f, setpoint = opening_setpoint, phase = phase, name = name)
     return Valve(medium, state, molar_flowrate_guess, Cv, opening_setpoint, f, phase, odesystem, :Valve)
 end
 
-@component function Valve_(;medium, Cv, ΔP_f, setpoint, phase, name)
 
-    systems = @named begin
-        InPort = PhZConnector_(medium = medium)
-        OutPort = PhZConnector_(medium = medium)
-        ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
-    end
+function Valve__(; medium, Cv, ΔP_f, setpoint, phase, name) 
 
-    pars = []
-
-    vars = @variables begin
-        opening_setpoint(t), [description = "Valve opening set point"]
+    odesystem = TwoPortControlVolume0D(medium = medium, phase = phase, name = name)
+    @unpack Q, OutPort, InPort, ControlVolumeState = odesystem
+    
+    extra_vars = @variables begin
         opening(t), [description = "Valve actual opening"]   
     end
 
-    if phase == "vapor"
+    ΔP = InPort.p - OutPort.p
 
-        phase_eq = [scalarize(ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...]
+    extra_eqs = [Q ~ 0,
+                OutPort.ṅ[1]/ControlVolumeState.ρ[1] ~ -opening*Cv*ΔP_f(ΔP), 
+                D(opening) ~ -1.0*(opening - setpoint)]
     
-    else
-
-        phase_eq = [scalarize(ControlVolumeState.z[:, 3] .~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...]
-
-    end
-
-    eqs = [
-
-        # Energy balance
-
-        0.0 ~ InPort.h[1]*InPort.ṅ[1] + OutPort.h[1]*(OutPort.ṅ[1]) 
-
-        # Mole balance per component
-        [0.0 ~ InPort.ṅ[1]*InPort.z[i, 1] + sum(dot(collect(OutPort.ṅ[2:end]), collect(OutPort.z[i:i, 2:end]))) for i in 1:medium.Constants.Nc]...
-        [InPort.z[i, 1] ~ OutPort.z[i, 1] for i in 1:medium.Constants.Nc]...
-
-        0.0 ~ InPort.ṅ[1] + OutPort.ṅ[1] #Mole balance
-                 
-
-        # Flow equation
-        OutPort.ṅ[1]/ControlVolumeState.ρ[1] ~ -opening*Cv*ΔP_f(InPort.p - OutPort.p)
-        OutPort.ṅ[2] ~ OutPort.ṅ[1]*ControlVolumeState.ϕ[1]
-        OutPort.ṅ[3] ~ OutPort.ṅ[1]*ControlVolumeState.ϕ[2]
-
-
-        # Outlet port properties
-        [OutPort.h[j] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[j], ControlVolumeState.T, collect(ControlVolumeState.z[:, j])) for j in 2:medium.Constants.nphases]...
-        OutPort.h[1] ~ dot(collect(OutPort.h[2:end]), collect(ControlVolumeState.ϕ))
-
-        # Port properties
-        OutPort.p ~ ControlVolumeState.p
-        scalarize(OutPort.z .~ ControlVolumeState.z)...
-
-
-        D(opening) ~ -1.0*(opening - opening_setpoint)
-        opening_setpoint ~ setpoint
-
-        ]
-
-        return System([phase_eq...; eqs...], t, collect(Iterators.flatten(vars)), pars; systems, name)
-
+    newsys = extend(System(extra_eqs, t, collect(Iterators.flatten(extra_vars)), []; name), odesystem)
+    return newsys
 end
 
 
-@component function ErgunDrop(;medium, solidmedium, tank, phase = "vapor", name)
+# ──────────────────────────────────────────────────────────────────────────────
+# ErgunDrop  – packed-bed pressure-drop component (extend-based, like Valve__)
+# ──────────────────────────────────────────────────────────────────────────────
 
-    systems = @named begin
-        InPort = PhZConnector_(medium = medium)
-        OutPort = PhZConnector_(medium = medium)
-        ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
-    end
+abstract type AbstractPorousDrop end
 
-    pars = []
+mutable struct ErgunDrop{M <: AbstractFluidMedium, SM, TK, S <: AbstractThermodynamicState} <: AbstractPorousDrop
+    medium::M
+    solidmedium::SM
+    tank::TK
+    state::S
+    molar_flowrate_guess
+    phase::String
+    odesystem
+    model_type::Symbol
+end
 
-    vars = []
 
-    if phase == "vapor"
-
-        phase_eq = [scalarize(ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...]
+function ErgunDrop(; medium, solidmedium, tank, state::S, flowrate_guess = 1.0, flowbasis = :volume, name) where S <: AbstractThermodynamicState
     
-    else
+    medium, state, phase = resolve_guess!(medium, state)
+    T = state.T
+    z = state.N / sum(state.N)
 
-        phase_eq = [scalarize(ControlVolumeState.z[:, 3] .~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...]
+    flowstate = rhoTzState(medium.Guesses.ρ[1], T, z)
+    molar_flowrate_guess = XtoMolar(flowrate_guess, medium, flowstate, flowbasis)
+    odesystem = ErgunDrop__(medium = medium, solidmedium = solidmedium, tank = tank, phase = phase, name = name)
+    return ErgunDrop(medium, solidmedium, tank, state, molar_flowrate_guess, phase, odesystem, :ErgunDrop)
+end
 
+function ErgunDrop__(; medium, solidmedium, tank, phase = "vapor", name) 
+
+    odesystem = TwoPortControlVolume0D(medium = medium, phase = phase, name = name)
+    @unpack Q, OutPort, InPort, ControlVolumeState = odesystem
+
+    extra_vars = @variables begin
+        ΔP(t), [description = "Pressure drop across the bed segment"]   
     end
-
-
-    #Imperative assignments
-    M̄ = molecular_weight(collect(ControlVolumeState.z[:, 1]), collect(ControlVolumeState.z[:, 1]))
-    vs = (InPort.ṅ[1]/ControlVolumeState.ρ[1]/M̄)/(π*(tank.D/2)^2) #imperative assignment 
+    
+    #Imperative assignments for aliasing intermediate symbolic expressions in the Ergun equation (= sign)
+    M̄ = molecular_weight(medium.EoSModel, collect(ControlVolumeState.z[:, 1]))
+    ṁ = InPort.ṅ[1]/ControlVolumeState.ρ[1]/M̄
+    vs = ṁ/(π*(tank.D/2)^2)  
     ε = tank.porosity
     ΔL = tank.H
     dp = solidmedium.Constants.particle_size*2.0
     μ = viscosity(medium, ControlVolumeState.p, abs(ControlVolumeState.T), collect(ControlVolumeState.z[:, 1]))
-    ΔP = (InPort.p - OutPort.p)
+    _ΔP = InPort.p - OutPort.p
     ρ = ControlVolumeState.ρ[1]
+
+
+    extra_eqs = [Q ~ 0,
+                ΔP ~ _ΔP,
+                _ΔP ~ 150.0*μ*ΔL/dp^2*(1-ε)^2/ε^3*vs + 1.75*ΔL*ρ/dp*(1-ε)/ε^3*abs(vs)*vs, 
+                ]
     
-
-    eqs = [
-
-        # Energy balance
-
-        0.0 ~ InPort.h[1]*InPort.ṅ[1] + OutPort.h[1]*(OutPort.ṅ[1]) 
-
-        # Mole balance per component
-        [0.0 ~ InPort.ṅ[1]*InPort.z[i, 1] + sum(dot(collect(OutPort.ṅ[2:end]), collect(OutPort.z[i:i, 2:end]))) for i in 1:medium.Constants.Nc]...
-        [InPort.z[i, 1] ~ OutPort.z[i, 1] for i in 1:medium.Constants.Nc]...
-
-        0.0 ~ InPort.ṅ[1] + OutPort.ṅ[1] #Mole balance
-                 
-
-        # Flow equation
-        ΔP ~ 150.0*μ*ΔL/dp^2*(1-ε)^2/ε^3*vs + 1.75*ΔL*ρ/dp*(1-ε)/ε^3*abs(vs)*vs
-        OutPort.ṅ[2] ~ OutPort.ṅ[1]*ControlVolumeState.ϕ[1]
-        OutPort.ṅ[3] ~ OutPort.ṅ[1]*ControlVolumeState.ϕ[2]
-
-
-        # Outlet port properties
-        [OutPort.h[j] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[j], ControlVolumeState.T, collect(ControlVolumeState.z[:, j])) for j in 2:medium.Constants.nphases]...
-        OutPort.h[1] ~ dot(collect(OutPort.h[2:end]), collect(ControlVolumeState.ϕ))
-        OutPort.p ~ ControlVolumeState.p
-        scalarize(OutPort.z .~ ControlVolumeState.z)...
-
-
-        ]
-
-        return System([phase_eq...; eqs...], t, collect(Iterators.flatten(vars)), pars; systems, name)
-
+    newsys = extend(System(extra_eqs, t, collect(Iterators.flatten(extra_vars)), []; name, guesses = [InPort.ṅ[1] => molar_flowrate_guess]), odesystem)
+    return newsys
 end
 
-export Valve, Valve_
+
+
+export Valve, Valve_, ErgunDrop

@@ -113,6 +113,8 @@ end
 
     pars = []
 
+    y⁺ = flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1]))
+
     # Basic equations
     eqs = [
         # No reactions or surface mass transfer
@@ -123,7 +125,7 @@ end
         Wₛ ~ 0.0
 
         # Vapor-liquid equilibrium
-        scalarize(ControlVolumeState.z[:, end] .~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...
+        scalarize(ControlVolumeState.z[:, end] .~ y⁺)...
 
         # Internal energy definition (both phases)
         U ~ (LiquidOutPort.h[2] - ControlVolumeState.p/ControlVolumeState.ρ[2])*nᴸⱽ[1] +

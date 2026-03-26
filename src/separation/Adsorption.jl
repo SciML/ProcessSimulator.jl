@@ -7,12 +7,14 @@ abstract type AbstractAdsorber end
         FluidSurface = Surface(medium = fluidmedium)
     end
 
-    eqs = [ domain_connect(FluidSurface.OutPort, SolidSurface.InPort)
-            scalarize(SolidSurface.InPort.μ .~ adsorbentmass*loading(solidmedium.isotherm, collect(FluidSurface.OutPort.μ), FluidSurface.OutPort.T))...
-            FluidSurface.OutPort.T ~ SolidSurface.InPort.T
-            scalarize(FluidSurface.OutPort.ϕₘ + SolidSurface.InPort.ϕₘ .~ 0.0)...
-            FluidSurface.OutPort.ϕₕ + SolidSurface.InPort.ϕₕ ~ 0.0
-        ]
+    q⁺ = loading(solidmedium.isotherm, collect(FluidSurface.OutPort.μ), FluidSurface.OutPort.T)
+
+    eqs = [domain_connect(FluidSurface.OutPort, SolidSurface.InPort)
+           scalarize(SolidSurface.InPort.μ .~ adsorbentmass*q⁺)...
+           FluidSurface.OutPort.T ~ SolidSurface.InPort.T
+           scalarize(FluidSurface.OutPort.ϕₘ + SolidSurface.InPort.ϕₘ .~ 0.0)...
+           FluidSurface.OutPort.ϕₕ + SolidSurface.InPort.ϕₕ ~ 0.0
+          ]
 
     vars = []
 
@@ -27,7 +29,7 @@ end
 
 
 
-mutable struct WellMixedAdsorber{FM <: AbstractFluidMedium, SM <: AbstractFluidMedium, S <: AbstractThermodynamicState} <: AbstractAdsorber
+mutable struct WellMixedAdsorber{FM <: AbstractFluidMedium, SM <: AbstractSolidMedium, S <: AbstractThermodynamicState} <: AbstractAdsorber
     fluidmedium::FM
     solidmedium::SM
     state::S
@@ -59,13 +61,13 @@ function WellMixedAdsorber(; fluidmedium, solidmedium, state::S, porosity, V, na
     # Extract pressure from state
     p = state.p
 
-    odesystem = WellMixedAdsorber_Model(fluidmedium = fluidmedium, solidmedium = solidmedium,
+    odesystem = WellMixedAdsorberModel(fluidmedium = fluidmedium, solidmedium = solidmedium,
                                         porosity = porosity, V = V, p = p, phase = phase, name = name)
 
     return WellMixedAdsorber(fluidmedium, solidmedium, state, phase, odesystem, :Adsorber)
 end
 
-@component function WellMixedAdsorber_Model(;fluidmedium, solidmedium, porosity, V, p, phase, name)
+@component function WellMixedAdsorberModel(;fluidmedium, solidmedium, porosity = 0.5, V, p, phase, name)
  
     mass_of_adsorbent = V * solidmedium.EoSModel.ρ_T0 * porosity
     A  = V*(1.0 - porosity)*area_per_volume(solidmedium) #Interfacial area
@@ -78,11 +80,15 @@ end
         
     end
 
+    # Intermediating assignments to clean up equation space
+    hₛ = ρT_enthalpy(solidmedium.EoSModel, stationaryphase.ControlVolumeState.ρ[1], stationaryphase.ControlVolumeState.T, collect(stationaryphase.ControlVolumeState.z[:, 1]))
+    ΔHₛ = isosteric_heat(solidmedium.isotherm, interface.FluidSurface.OutPort.μ, interface.FluidSurface.OutPort.T).*stationaryphase.rₐ[:, end]
+
     eqs = [
-        
+
         # Custom energy balance
         mobilephase.U ~ (mobilephase.OutPort.h[1] - mobilephase.ControlVolumeState.p/mobilephase.ControlVolumeState.ρ[1])*sum(collect(mobilephase.Nᵢ))
-        stationaryphase.U ~ (ρT_enthalpy(solidmedium.EoSModel, stationaryphase.ControlVolumeState.ρ[1], stationaryphase.ControlVolumeState.T, collect(stationaryphase.ControlVolumeState.z[:, 1])))*mass_of_adsorbent #Pressure is not relevant for internal energy of the particle.
+        stationaryphase.U ~ hₛ*mass_of_adsorbent #Pressure is not relevant for internal energy of the particle.
 
         # Fluid Surface ports equalities
         interface.FluidSurface.InPort.T ~ mobilephase.ControlVolumeState.T
@@ -93,7 +99,7 @@ end
         scalarize(interface.SolidSurface.OutPort.T ~ stationaryphase.ControlVolumeState.T)
 
         # Heat and mass transfer
-        stationaryphase.Q ~ interface.SolidSurface.InPort.ϕₕ*A + sum(-collect(isosteric_heat(solidmedium.isotherm, interface.FluidSurface.OutPort.μ, interface.FluidSurface.OutPort.T).*stationaryphase.rₐ[:, end]))
+        stationaryphase.Q ~ interface.SolidSurface.InPort.ϕₕ*A + -sum(collect(ΔHₛ))
         scalarize(stationaryphase.rₐ[:, end] .~ interface.SolidSurface.InPort.ϕₘ)...
 
         # No Volumetric sink/source constraints
@@ -113,13 +119,15 @@ end
     ]
 
     if phase == "liquid" #MTK can't handle equation change in mid simulation, so pick one phase.
+         
+        y⁺ = flash_mol_fractions_vapor(fluidmedium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1]))
         
         phase_eqs = [
 
             scalarize(mobilephase.rₐ[:, 2] .~ interface.FluidSurface.OutPort.ϕₘ*A)...
             scalarize(mobilephase.rₐ[:, end] .~ 0.0)...
 
-            scalarize(mobilephase.ControlVolumeState.z[:, end] .~ flash_mol_fractions_vapor(fluidmedium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1])))...
+            scalarize(mobilephase.ControlVolumeState.z[:, end] .~ y⁺)...
 
             scalarize(interface.FluidSurface.InPort.μ .~ mobilephase.nᴸⱽ[1]/mobilephase.V[2])... #This is phase specific
 
@@ -129,15 +137,18 @@ end
         ]
 
     elseif phase == "vapor" 
+        
+        x⁺ = flash_mol_fractions_liquid(fluidmedium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1]))
+        pᵢ = mobilephase.ControlVolumeState.p*mobilephase.ControlVolumeState.z[:, end]
 
         phase_eqs = [
 
             scalarize(mobilephase.rₐ[:, 2] .~ 0.0)...
             scalarize(mobilephase.rₐ[:, end] .~ interface.FluidSurface.OutPort.ϕₘ*A)...
             
-            scalarize(mobilephase.ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(fluidmedium.EoSModel, mobilephase.ControlVolumeState.p, mobilephase.ControlVolumeState.T, collect(mobilephase.ControlVolumeState.z[:, 1])))...
+            scalarize(mobilephase.ControlVolumeState.z[:, 2] .~ x⁺)...
 
-            scalarize(interface.FluidSurface.InPort.μ .~ mobilephase.ControlVolumeState.p*mobilephase.ControlVolumeState.z[:, end])... #Partial pressure in vapor phase/rigorously is fugacity
+            scalarize(interface.FluidSurface.InPort.μ .~ pᵢ)... #Partial pressure in vapor phase/rigorously is fugacity
 
             #Volume Constraint          
             mobilephase.V[1] ~ V*(porosity) #Volume of mobile phase

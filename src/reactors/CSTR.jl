@@ -99,10 +99,13 @@ function SteadyStateCSTR(;medium, reactionset, limiting_reactant, state, W, Q, n
         limiting_reactant = medium.Constants.iupacName[1]
     end
 
-    odesystem = SteadyStateCSTRModel(medium = medium, reactions = reactionset, 
-    limiting_reactant = limiting_reactant, state = state, W = W, Q = Q, phase = phase, name = name)
-
-    
+    odesystem = SteadyStateCSTRModel(medium = medium,
+                                    reactions = reactionset, 
+                                    limiting_reactant = limiting_reactant,
+                                    W = W,
+                                    Q = Q,
+                                    phase = phase,
+                                    name = name)
 
     if !isnothing(Q)            #If heat is given use, else fix temperature and calculate heat
         _Q = copy(Q)
@@ -136,9 +139,9 @@ function FixedVolumeSteadyStateCSTR(; medium, reactionset, limiting_reactant, st
 end
 
 
-@component function SteadyStateCSTRModel(;medium, reactions, limiting_reactant = nothing, state, W = 0.0, Q = nothing, phase = "liquid", name)
+function SteadyStateCSTRModel(;medium, reactions, limiting_reactant = nothing, W = 0.0, Q = nothing, phase = "liquid", name)
 
-    @named CV = TwoPortControlVolume_SteadyState(medium = medium)
+    @named CV = TwoPortControlVolume1D_SS(medium = medium, name = name)
     @unpack U, Nᵢ, V, InPort, OutPort, ControlVolumeState, rₐ, rᵥ, Wₛ = CV
 
     vars = @variables begin

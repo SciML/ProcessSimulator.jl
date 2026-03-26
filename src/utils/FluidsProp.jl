@@ -4,18 +4,18 @@ abstract type AbstractEoSBased <: AbstractFluidMedium end
 
 abstract type AbstractThermodynamicState end
 
-mutable struct pTNVState{T <: Union{Real, Nothing}, K <: AbstractArray{<:T}} <: AbstractThermodynamicState
-    p::T
-    T::T
+mutable struct pTNVState{A <: Union{Real, Nothing}, K <: AbstractArray{<:Real}} <: AbstractThermodynamicState
+    p
+    T::A
     N::K
     V
 end
 
-function pTNVState(p, T, N; base = :Pressure)
+function pTNVState(p_or_V, T, N; base = :Pressure)
     if base == :Pressure
-    return pTNVState(p, T, N, nothing)
+    return pTNVState(p_or_V, T, N, nothing)
     else
-    return pTNVState(nothing, T, N, V)
+    return pTNVState(nothing, T, N, p_or_V)
     end
 end
 
@@ -73,42 +73,6 @@ struct EosBasedGuesses{M <: Any, V <: Real, D <: AbstractArray{V}, F <: Abstract
     ϕ #vaporized fraction
 end
 
-
-"""
-    EoSBased{F<:BasicFluidConstants, E<:Any, G<:EosBasedGuesses, T<:TransportModel} <: AbstractEoSBased
-
-Represents a fluid medium characterized by an equation of state (EoS) model.
-
-# Fields
-- `Constants::F`: Physical and chemical constants of the fluid components (molecular weights, names, etc.)
-- `EoSModel::E`: Equation of state model used for thermodynamic calculations (e.g., Peng-Robinson, GERG-2008)
-- `TransportModel::T`: Model for transport properties (viscosity, thermal conductivity, etc.)
-- `Guesses::G`: Current state variable guesses (pressure, temperature, densities, compositions)
-
-# Examples
-```julia
-# Create a methane-ethane mixture with Peng-Robinson EoS
-components = ["methane", "ethane"]
-eos = PR(components)  # Peng-Robinson EoS from Clapeyron.jl
-medium = EoSBased(components, eos)
-
-# Create with a specific initial state (room temperature, slightly elevated pressure)
-state = pTzState(5e5, 298.15, [0.7, 0.3])  # 5 bar, 25°C, 70% methane
-medium_with_state = EoSBased(components, eos, state)
-
-# Create with custom transport models and state
-mt_model = ConstantMassTransferCoeff([0.5, 0.6])  # Component-specific coefficients
-ht_model = ConstantHeatTransferCoeff(15.0)  # W/(m²·K)
-visc_model = ChapmanEnskogModel(components)
-transport = TransportModel(mt_model, ht_model, visc_model)
-medium_full = EoSBased(components, eos, transport, state)
-
-# Access thermodynamic properties
-ρ_liquid = medium.Guesses.ρ[2]  # Liquid phase density (mol/m³)
-h_vapor = medium.Guesses.h[3]  # Vapor phase enthalpy (J/mol)
-vapor_frac = medium.Guesses.ϕ[2]  # Vapor fraction
-
-"""
 mutable struct EoSBased{F <: BasicFluidConstants, E <: Any, G <: EosBasedGuesses, T <: TransportModel} <: AbstractEoSBased
     Constants::F
     EoSModel::E
@@ -234,8 +198,11 @@ function EosBasedGuesses(EoSModel::M, p::V, T::V, z::D, ::Val{:Pressure}) where 
 end
 
 function EosBasedGuesses(EoSModel::M, V::K, T::K, N::D, ::Val{:Volume}) where {M <: Any, K <: Real, D <: AbstractArray{ <: Real}}
-    return nothing
+         res = VT_flash(EoSModel, V, T, N)
+         p = res.data.p
+    return EosBasedGuesses(EoSModel, p, T, N, Val(:Pressure))
 end
+
 
 function resolve_guess!(medium, state)
     phase = "unknown"
@@ -248,6 +215,7 @@ function resolve_guess!(medium, state)
     elseif isnothing(p)
         medium.Guesses = EosBasedGuesses(medium.EoSModel, V, T, N, Val(:Volume))
         phase = ifelse(medium.Guesses.ϕ[2] ≈ 1.0, "vapor", "liquid")
+        println(medium.Guesses.p)
         state.p = medium.Guesses.p
     else
         # Both p and V are available - still update guesses with current composition
@@ -265,6 +233,10 @@ function PT_molar_density(EoSModel, p, T, x; phase = "unknown")
 end
 
 function TP_flash(EoSModel, p, T, x)
+    return NaN
+end
+
+function VT_flash(EoSModel, V, T, N)
     return NaN
 end
 
@@ -342,7 +314,7 @@ end
 
 
 export EoSBased
-export is_stable, is_VT_stable, TP_flash, flash_mol_fractions, flash_mol_fractions_liquid, flash_mol_fractions_vapor, flash_vaporized_fraction, PT_molar_density, ρT_enthalpy, ρT_internal_energy, molecular_weight, pT_enthalpy
+export is_stable, is_VT_stable, TP_flash, flash_mol_fractions, flash_mol_fractions_liquid, flash_mol_fractions_vapor, flash_vaporized_fraction, PT_molar_density, ρT_enthalpy, ρT_internal_energy, molecular_weight, pT_enthalpy, VT_flash
 export mass_transfer_coefficient, heat_transfer_coefficient, viscosity
 
 

@@ -106,6 +106,24 @@ function heat_transfer_coefficient(solid::A, T = 273.15, x = ones(adsorbent.Cons
     return heat_transfer_coefficient(solid.TransportModel.HeatTransferModel, solid, T, x)
 end
 
+#Isotherms
+function loading(model::M, p, T, z) where M
+    return p
+end
+
+#Isotherms
+function loading(model::M, p, T) where M
+    return p
+end
+
+function isosteric_heat(model::M, p, T, z) where M 
+    return p
+end
+
+function isosteric_heat(model::M, p, T) where M 
+    return p
+end
+
 export SolidEoSModel, Adsorbent, area_per_volume
 
 

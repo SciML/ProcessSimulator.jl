@@ -16,6 +16,7 @@ abstract type AbstractSeparator <: AbstractUnitOperation end
 include("utils/utils.jl")
 include("base/basecomponents.jl")
 include("pressure_drop/valve.jl")
+include("pressure_drop/splitter.jl")
 include("separation/Adsorption.jl")
 include("separation/FlashDrum.jl")
 include("reactors/CSTR.jl")

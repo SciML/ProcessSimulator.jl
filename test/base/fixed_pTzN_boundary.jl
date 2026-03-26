@@ -56,8 +56,8 @@ adsorbent = Adsorbent(adsorbent_name = "XYZ",
 
 tank = CylindricalTank(D = 0.1, L = 0.5, porosity = 0.5)
 volume_tank = volume_(tank)
-mass_of_adsorbent = volume_tank * solidmedium.EoSModel.ρ_T0 * tank.porosity
-A  = volume_tank*(1.0 - tank.porosity)*area_per_volume(solidmedium) #Interfacial area
+#mass_of_adsorbent = volume_tank * solidmedium.EoSModel.ρ_T0 * tank.porosity
+#A  = volume_tank*(1.0 - tank.porosity)*area_per_volume(solidmedium) #Interfacial area
 
 
 adsorbent.isotherm

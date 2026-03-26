@@ -115,8 +115,8 @@ end
     vars = @variables begin
         T(t),                                                                                      [description = "Temperature", output = true]                      
         μ(t)[1:medium.Constants.Nc],                                                               [description = "Chemical potential or an estimate of it", output = true]  
-        ϕₘ(t)[1:medium.Constants.Nc],                                                              [description = "Molar Flow Rate", output = true]
-        ϕₕ(t),                                                                                     [description = "Heat Flow Rate", output = true]       
+        ϕₘ(t)[1:medium.Constants.Nc],                                                              [description = "Molar Flux", output = true]
+        ϕₕ(t),                                                                                     [description = "Heat Flux", output = true]       
     end
 
     pars = []
@@ -152,8 +152,62 @@ end
 
 end
 
+@component function TwoPortControlVolume0D(;medium, phase, name)
 
-@component function TwoPortControlVolume_(;medium, name)
+    systems = @named begin
+        InPort = PhZConnector_(medium = medium)
+        OutPort = PhZConnector_(medium = medium)
+        ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
+    end
+
+    pars = []
+
+    vars = @variables begin
+        Q(t),                                                                                         [description = "heat flux"]
+    end
+
+    if phase == "vapor"
+
+        phase_eq = [scalarize(ControlVolumeState.z[:, 2] .~ flash_mol_fractions_liquid(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...]
+    
+    else
+
+        phase_eq = [scalarize(ControlVolumeState.z[:, 3] .~ flash_mol_fractions_vapor(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, collect(ControlVolumeState.z[:, 1])))...]
+
+    end
+
+    eqs = [
+
+        # Energy balance
+        0.0 ~ InPort.h[1]*InPort.ṅ[1] + OutPort.h[1]*(OutPort.ṅ[1]) + Q
+
+        # Mole balance per component
+        [0.0 ~ InPort.ṅ[1]*InPort.z[i, 1] + sum(dot(collect(OutPort.ṅ[2:end]), collect(OutPort.z[i:i, 2:end]))) for i in 1:medium.Constants.Nc]...
+        [InPort.z[i, 1] ~ OutPort.z[i, 1] for i in 1:medium.Constants.Nc]...
+
+        # Overall Mole balance
+        0.0 ~ InPort.ṅ[1] + OutPort.ṅ[1] 
+                 
+        # Flow equation
+        OutPort.ṅ[2] ~ OutPort.ṅ[1]*ControlVolumeState.ϕ[1]
+        OutPort.ṅ[3] ~ OutPort.ṅ[1]*ControlVolumeState.ϕ[2]
+
+        # Outlet port properties
+        [OutPort.h[j] ~ ρT_enthalpy(medium.EoSModel, ControlVolumeState.ρ[j], ControlVolumeState.T, collect(ControlVolumeState.z[:, j])) for j in 2:medium.Constants.nphases]...
+        OutPort.h[1] ~ dot(collect(OutPort.h[2:end]), collect(ControlVolumeState.ϕ))
+
+        # Port properties
+        OutPort.p ~ ControlVolumeState.p
+        scalarize(OutPort.z .~ ControlVolumeState.z)...
+
+        ]
+
+        return System([phase_eq...; eqs...], t, collect(Iterators.flatten(vars)), pars; systems, name)
+
+end
+
+
+@component function TwoPortControlVolume1D(;medium, name)
 
     systems = @named begin
         InPort = PhZConnector_(medium = medium)
@@ -224,7 +278,9 @@ end
 end
 
 
-@component function TwoPortControlVolume_SteadyState(;medium, name)
+#Reactors need holdup information for calculating even at steady state.
+
+@component function TwoPortControlVolume1D_SS(;medium, name)
 
     systems = @named begin
         InPort = PhZConnector_(medium = medium)
@@ -294,6 +350,7 @@ end
         return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems = [systems...])
 
 end
+
 
 
 @component function ThreePortControlVolume_(;medium, name)
@@ -408,78 +465,6 @@ end
         Wₛ(t),                                                                                         [description = "shaft work"]
     end
 
-@component function ThreePortControlVolume_SteadyState_PT(;medium, name)
-    """
-    Simplified three-port control volume for PT flash (steady-state)
-    Eliminates holdup variables - only for PT flash where P,T are specified
-    """
-
-    systems = @named begin
-        InPort = PhZConnector_(medium = medium)
-        LiquidOutPort = PhZConnector_(medium = medium)
-        VaporOutPort = PhZConnector_(medium = medium)
-        ControlVolumeState = ρTz_ThermodynamicState_(medium = medium)
-    end
-
-    vars = @variables begin
-        Q(t),                                                                                          [description = "heat flux"]
-        Wₛ(t),                                                                                         [description = "shaft work"]
-    end
-
-    pars = []
-
-    eqs = [
-        # Steady-state energy balance
-        0 ~ InPort.h[1]*InPort.ṅ[1] +
-            LiquidOutPort.h[1]*LiquidOutPort.ṅ[1] +
-            VaporOutPort.h[1]*VaporOutPort.ṅ[1] + Q + Wₛ
-
-        # Steady-state component mole balances (no reactions or surface transfer)
-        [0 ~ InPort.ṅ[1]*InPort.z[i, 1] +
-             LiquidOutPort.ṅ[1]*LiquidOutPort.z[i, 1] +
-             VaporOutPort.ṅ[1]*VaporOutPort.z[i, 1] for i in 1:medium.Constants.Nc]...
-
-        # Overall composition in control volume equals inlet composition
-        scalarize(ControlVolumeState.z[:, 1] .~ InPort.z[:, 1])...
-
-        # Liquid outlet properties (pure liquid stream)
-        LiquidOutPort.p ~ ControlVolumeState.p
-        scalarize(LiquidOutPort.z[:, 2] .~ ControlVolumeState.z[:, 2])...
-        scalarize(LiquidOutPort.z[:, 3] .~ ControlVolumeState.z[:, 3])...
-        scalarize(LiquidOutPort.z[:, 1] .~ ControlVolumeState.z[:, 2])...  # Overall = liquid composition
-
-        LiquidOutPort.h[2] ~ pT_enthalpy(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, 
-                                        collect(ControlVolumeState.z[:, 2]), "liquid")
-        LiquidOutPort.h[3] ~ pT_enthalpy(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, 
-                                        collect(ControlVolumeState.z[:, 3]), "vapor")
-        LiquidOutPort.h[1] ~ LiquidOutPort.h[2]  # Pure liquid stream
-
-        LiquidOutPort.ṅ[2] ~ LiquidOutPort.ṅ[1]  # Total flow = liquid flow
-        LiquidOutPort.ṅ[3] ~ 0.0                 # No vapor in liquid stream
-
-        # Vapor outlet properties (pure vapor stream)
-        VaporOutPort.p ~ ControlVolumeState.p
-        scalarize(VaporOutPort.z[:, 2] .~ ControlVolumeState.z[:, 2])...
-        scalarize(VaporOutPort.z[:, 3] .~ ControlVolumeState.z[:, 3])...
-        scalarize(VaporOutPort.z[:, 1] .~ ControlVolumeState.z[:, 3])...  # Overall = vapor composition
-
-        VaporOutPort.h[2] ~ pT_enthalpy(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, 
-                                       collect(ControlVolumeState.z[:, 2]), "liquid")
-        VaporOutPort.h[3] ~ pT_enthalpy(medium.EoSModel, ControlVolumeState.p, ControlVolumeState.T, 
-                                       collect(ControlVolumeState.z[:, 3]), "vapor")
-        VaporOutPort.h[1] ~ VaporOutPort.h[3]    # Pure vapor stream
-
-        VaporOutPort.ṅ[3] ~ VaporOutPort.ṅ[1]    # Total flow = vapor flow  
-        VaporOutPort.ṅ[2] ~ 0.0                  # No liquid in vapor stream
-        
-        # Flow balance based on phase fractions (key equations!)
-        LiquidOutPort.ṅ[1] ~ -InPort.ṅ[1] * ControlVolumeState.ϕ[1]        # Liquid flow out
-        VaporOutPort.ṅ[1] ~ -InPort.ṅ[1] * (1 - ControlVolumeState.ϕ[1])   # Vapor flow out
-    ]
-
-    return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems = [systems...])
-end
-
     pars = []
 
     eqs = [
@@ -538,7 +523,7 @@ end
         
         # Missing DOF equations: Overall flow balance and phase splitting
         LiquidOutPort.ṅ[1] + InPort.ṅ[1] * ControlVolumeState.ϕ[1] ~ 0.0
-        VaporOutPort.ṅ[1] + InPort.ṅ[1] * (ControlVolumeState.ϕ[2]) ~ 0.0
+        VaporOutPort.ṅ[1] + InPort.ṅ[1] * ControlVolumeState.ϕ[2] ~ 0.0
     ]
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), pars; name, systems = [systems...])

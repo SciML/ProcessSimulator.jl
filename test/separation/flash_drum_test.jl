@@ -26,7 +26,7 @@ medium = EoSBased(components = components, eosmodel = model)
 
 #[0.2379, 0.3082, 0.09959, 0.1373, 0.08872, 0.1283]
 #This is just a guess as in a flowsheet the real composition will depend on upstream conditions
-flash_state = pTNVState(2.5e5, 338.00, [0.2379, 0.3082, 0.09959, 0.1373, 0.08872, 0.1283], base = :Pressure)
+flash_state = pTNVState(2.5e5, 315.87, [0.2379, 0.3082, 0.09959, 0.1373, 0.08872, 0.1283], base = :Pressure)
 
 @named FL1 = FixedPressureSteadyStateFlashDrum(
     medium = medium,
@@ -34,6 +34,7 @@ flash_state = pTNVState(2.5e5, 338.00, [0.2379, 0.3082, 0.09959, 0.1373, 0.08872
     pressure = flash_state.p,  # Flash at 2.5 atm as per EMSO example
     Q = nothing
 )
+
 
 @named LiquidPort = ConnHouse(medium = medium)
 @named VaporPort = ConnHouse(medium = medium)
@@ -55,7 +56,7 @@ default_guesses = guesses(SteadyStateFlash)
 guesses_Flash = Dict(
     FL1.odesystem.V[2] => 1.0/FL1.medium.Guesses.ρ[2],
     FL1.odesystem.V[3] => 1.0/FL1.medium.Guesses.ρ[3],
-    FL1.odesystem.nᴸⱽ[2] => 100.0,  # Vapor holdup guess
+    FL1.odesystem.nᴸⱽ[2] => 1e3,  # Vapor holdup guess
 )
 merged_guesses = merge(default_guesses, guesses_Flash)
 
