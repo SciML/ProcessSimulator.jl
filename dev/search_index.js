@@ -1,3 +1,3 @@
 var documenterSearchIndex = {"docs":
-[{"location":"#ProcessSimulator","page":"Home","title":"ProcessSimulator","text":"Documentation for ProcessSimulator.\n\n","category":"section"}]
+[{"category":"section","location":"#ProcessSimulator","page":"Home","text":"Documentation for ProcessSimulator.\n\n","title":"ProcessSimulator"}]
 }
