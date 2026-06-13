@@ -1,4 +1,6 @@
 [default.extend-words]
+# Portuguese for "constructor" in Portuguese-language source comments
+Construtor = "Construtor"
 # Julia-specific functions
 indexin = "indexin"
 findfirst = "findfirst"

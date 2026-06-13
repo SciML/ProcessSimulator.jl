@@ -65,7 +65,7 @@
         #Out stuff
         Out.P ~ P
         Out.T ~ T
-        Out.F ~ Fₜ # F is negative as it is leaving the pbject
+        Out.F ~ Fₜ # F is negative as it is leaving the object
         Out.H ~ Hⱼ[1]
         scalarize(Out.z₁ .~ zⱼᵢ[1, :])...
         scalarize(Out.z₂ .~ zⱼᵢ[2, :])...

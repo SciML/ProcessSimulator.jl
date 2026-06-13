@@ -5,7 +5,7 @@ using ProcessSimulator: matcon
 
 # Test for CSTR
 
-#---------- Source objct
+#---------- Source object
 substances = ["water", "methanol", "propyleneglycol", "methyloxirane"]
 idealmodel = ReidIdeal(substances; userlocations = read_reidcp(substances))
 PCSAFT_model = PCPSAFT(substances, idealmodel = idealmodel)
