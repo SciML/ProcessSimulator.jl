@@ -59,7 +59,7 @@
         Nᵍ(t), [description = "Total molar holdup in the gas phase (mol)", guess = 10.0]
 
         T(t), [description = "Drum temperature (K)"]
-        P(t), [description = "Drum pressue (Pa)", guess = 1.2 * 101325.0]
+        P(t), [description = "Drum pressure (Pa)", guess = 1.2 * 101325.0]
         U(t), [description = "Total internal energy holdup in the tank (L + G) (J)"]
         V(t), [description = "Total volume in the tank (L + G) (m³)"]
 
