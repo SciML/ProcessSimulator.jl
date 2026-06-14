@@ -10,6 +10,7 @@ ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 DifferentialEquations = "7"
 ModelingToolkit = "9"
 SafeTestsets = "0.1"
+SciMLTesting = "1"
 Test = "1"
 julia = "1.10"
 
@@ -17,7 +18,7 @@ julia = "1.10"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+SciMLTesting = "09d9d899-5365-40a9-917a-5f67fddea283"
 
 [targets]
-test = ["Test", "SafeTestsets", "DifferentialEquations", "Pkg"]
+test = ["Test", "SafeTestsets", "DifferentialEquations", "SciMLTesting"]

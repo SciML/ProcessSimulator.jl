@@ -1,12 +1,5 @@
-using ProcessSimulator
-using Aqua
-using JET
-using Test
+using ProcessSimulator, Aqua, JET
+using SciMLTesting
 
-@testset "Aqua" begin
-    Aqua.test_all(ProcessSimulator)
-end
-
-@testset "JET" begin
-    JET.test_package(ProcessSimulator; target_defined_modules = true)
-end
+run_qa(ProcessSimulator; Aqua = Aqua, JET = JET, jet = true,
+    jet_kwargs = (; target_defined_modules = true))
