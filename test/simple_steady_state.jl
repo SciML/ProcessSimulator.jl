@@ -45,7 +45,12 @@ u0_comp = [
     comp.ηᴱ => 0.8,
 ]
 
-prob_comp = SteadyStateProblem(compressor, inp_comp, u0_comp)
+# The compressor is purely algebraic (no differential states after simplification),
+# so its steady state is the root of the algebraic equations. Building a
+# `SteadyStateProblem` here makes MTK assemble an over-determined initialization
+# system that fails (`InitialFailure`) and returns the untouched guess; solve the
+# algebraic steady state directly as a `NonlinearProblem` instead.
+prob_comp = NonlinearProblem(compressor, u0_comp, inp_comp)
 sol_comp = solve(prob_comp)
 
 @test sol_comp[comp.W] ≈ 2.3933999e6 rtol = 1.0e-5
@@ -104,7 +109,9 @@ flowsheet, idx = structural_simplify(flowsheet_, (first.(inp), out))
 
 u0 = [u => 1.0 for u in unknowns(flowsheet)]
 
-prob = SteadyStateProblem(flowsheet, inp, u0)
+# As with the single compressor above, the flowsheet is fully algebraic, so its
+# steady state is solved directly as a `NonlinearProblem`.
+prob = NonlinearProblem(flowsheet, u0, inp)
 sol = solve(prob)
 
 ε_KM = abs(sol[heat_44⁺.Q]) / abs(sol[turb_34.W] + sol[comp_12.W])
