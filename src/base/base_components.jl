@@ -123,13 +123,11 @@ end
         ΔE(t), [description = "added/removed heat or work"]          #, unit=u"J/s"]
         V(t), [description = "volume", bounds = (0, Inf)]             #, unit=u"m^3"]
     end
-    reactive ?
-        append!(
-            vars, @variables begin
-                ΔnR(t)[1:ms.N_c], [description = "molar holdup change by reaction"]     #, unit=u"mol"])
-                ΔHᵣ(t), [description = "enthalpy of reaction"]                #, unit=u"J/s"]
-            end
-        ) : nothing
+    reaction_vars = @variables begin
+        ΔnR(t)[1:ms.N_c], [description = "molar holdup change by reaction"]     #, unit=u"mol"])
+        ΔHᵣ(t), [description = "enthalpy of reaction"]                #, unit=u"J/s"]
+    end
+    reactive ? append!(vars, reaction_vars) : nothing
 
     eqs = [
         ΔH ~ sum([c.h * c.n for c in mcons]),

@@ -7,8 +7,8 @@ version = "1.0.0"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 
 [compat]
-DifferentialEquations = "7"
-ModelingToolkit = "9"
+DifferentialEquations = "7.16"
+ModelingToolkit = "9.65"
 SafeTestsets = "0.1"
 SciMLTesting = "1"
 Test = "1"
