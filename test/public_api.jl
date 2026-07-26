@@ -19,7 +19,8 @@ using Test
     end
     @test all(name -> !isnothing(Base.Docs.doc(ProcessSimulator, name)), public_names)
 
-    source = ProcessSimulator.MaterialSource("helium";
+    source = ProcessSimulator.MaterialSource(
+        "helium";
         Mw = 0.004,
         molar_density = (p, T, xᵢ; kwargs...) -> p / (8.314 * T),
         VT_enthalpy = (ϱ, T, xᵢ) -> 20.0 * T,
