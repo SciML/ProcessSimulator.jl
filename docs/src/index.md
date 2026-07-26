@@ -4,11 +4,8 @@ CurrentModule = ProcessSimulator
 
 # ProcessSimulator
 
-Documentation for [ProcessSimulator](https://github.com/avinashresearch1/ProcessSimulator.jl).
+Build ModelingToolkit flowsheets from material-property functions, streams,
+compressors, heat exchangers, and continuous stirred-tank reactors.
 
 ```@index
-```
-
-```@autodocs
-Modules = [ProcessSimulator]
 ```

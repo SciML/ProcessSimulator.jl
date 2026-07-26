@@ -1,3 +1,31 @@
+"""
+    MaterialStream(ms::MaterialSource; phase = "unknown", name)
+
+Create a two-sided material stream with thermodynamic closure relations.
+
+# Arguments
+
+  - `ms`: The material source that provides density and enthalpy functions.
+
+# Keywords
+
+  - `phase`: Phase passed to `ms.molar_density`; defaults to `"unknown"`.
+  - `name`: Required ModelingToolkit component name; `@named stream = MaterialStream(ms)`
+    supplies it automatically.
+
+# Examples
+
+```jldoctest
+julia> source = MaterialSource("helium"; Mw = 0.004,
+           molar_density = (p, T, xᵢ; kwargs...) -> p / (8.314 * T),
+           VT_enthalpy = (ϱ, T, xᵢ) -> 20.0 * T);
+
+julia> stream = MaterialStream(source; name = :stream);
+
+julia> nameof(stream)
+:stream
+```
+"""
 @component function MaterialStream(ms::MaterialSource; phase = "unknown", name)
     @named c1 = MaterialConnector(ms)
     @named c2 = MaterialConnector(ms)
@@ -35,6 +63,8 @@
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems = mcons)
 end
+
+@public MaterialStream
 
 @connector function MaterialConnector(ms::MaterialSource; name)
     vars = @variables begin

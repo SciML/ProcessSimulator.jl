@@ -1,3 +1,32 @@
+"""
+    SimpleAdiabaticCompressor(ms::MaterialSource; name)
+
+Create an algebraic adiabatic-compressor component with two material connectors and
+one work connector.
+
+# Arguments
+
+  - `ms`: Material source used for density, entropy, and enthalpy relations.
+
+# Keywords
+
+  - `name`: Required ModelingToolkit component name; use
+    `@named compressor = SimpleAdiabaticCompressor(ms)`.
+
+# Examples
+
+```jldoctest
+julia> source = MaterialSource("helium"; Mw = 0.004,
+           molar_density = (p, T, xᵢ; kwargs...) -> p / (8.314 * T),
+           VT_enthalpy = (ϱ, T, xᵢ) -> 20.0 * T,
+           VT_entropy = (ϱ, T, xᵢ) -> log(T));
+
+julia> compressor = SimpleAdiabaticCompressor(source; name = :compressor);
+
+julia> nameof(compressor)
+:compressor
+```
+"""
 @component function SimpleAdiabaticCompressor(ms::MaterialSource; name)
 
     # Subsystems
@@ -25,3 +54,5 @@
 
     return ODESystem(eqs, t, vars, pars; name, systems = [cv])
 end
+
+@public SimpleAdiabaticCompressor
