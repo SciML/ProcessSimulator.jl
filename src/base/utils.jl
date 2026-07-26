@@ -1,3 +1,32 @@
+"""
+    Port(ms::MaterialSource; phase = "unknown", name)
+
+Create a one-sided material port for a flowsheet.
+
+# Arguments
+
+  - `ms`: The material source that defines density and enthalpy relations.
+
+# Keywords
+
+  - `phase`: Phase forwarded to `ms.molar_density`; use `"unknown"` when the
+    source selects the phase itself.
+  - `name`: Required ModelingToolkit component name. `@named inlet = Port(ms)`
+    supplies it automatically.
+
+# Examples
+
+```jldoctest
+julia> source = MaterialSource("helium"; Mw = 0.004,
+           molar_density = (p, T, xᵢ; kwargs...) -> p / (8.314 * T),
+           VT_enthalpy = (ϱ, T, xᵢ) -> 20.0 * T);
+
+julia> inlet = Port(source; name = :inlet);
+
+julia> nameof(inlet)
+:inlet
+```
+"""
 @component function Port(ms; phase = "unknown", name)
     @named c = MaterialConnector(ms)
 
@@ -29,3 +58,5 @@
 
     return ODESystem(eqs, t, collect(Iterators.flatten(vars)), []; name, systems = [c])
 end
+
+@public Port

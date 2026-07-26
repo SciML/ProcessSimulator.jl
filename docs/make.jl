@@ -1,7 +1,15 @@
 using ProcessSimulator
 using Documenter
 
-DocMeta.setdocmeta!(ProcessSimulator, :DocTestSetup, :(using ProcessSimulator); recursive = true)
+DocMeta.setdocmeta!(
+    ProcessSimulator,
+    :DocTestSetup,
+    quote
+        using ProcessSimulator: CSTR, MaterialSource, MaterialStream, Port, Reaction,
+            SimpleAdiabaticCompressor, SimpleIsobaricHeatExchanger
+    end;
+    recursive = true
+)
 
 makedocs(;
     modules = [ProcessSimulator],
@@ -12,8 +20,11 @@ makedocs(;
         edit_link = "main",
         assets = String[]
     ),
+    doctest = true,
+    checkdocs = :public,
     pages = [
         "Home" => "index.md",
+        "API" => "api.md",
     ]
 )
 

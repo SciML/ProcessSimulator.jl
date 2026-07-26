@@ -3,8 +3,8 @@ module ProcessSimulator
 using ModelingToolkit: ModelingToolkit, @component, @connector, @named,
     @parameters, @variables, Equation, Flow, ODESystem
 using ModelingToolkit: t_nounits as t, D_nounits as D
-# scalarize is owned by SymbolicUtils and re-exported (non-public) via ModelingToolkit
-using ModelingToolkit: scalarize
+using SciMLPublic: @public
+using Symbolics: scalarize
 
 # Base
 include("base/materials.jl")
