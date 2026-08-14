@@ -9,8 +9,8 @@ SciMLPublic = "431bcebd-1456-4ced-9d72-93c2757fff0b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-DifferentialEquations = "7.16"
-ModelingToolkit = "9.65, 11.28"
+DifferentialEquations = "8"
+ModelingToolkit = "11.28"
 SafeTestsets = "0.1"
 SciMLPublic = "1"
 SciMLTesting = "2.4"
