@@ -18,4 +18,6 @@ include("fluid_handling/heat_exchangers.jl")
 # Reactors
 include("reactors/CSTR.jl")
 
+include("precompile.jl")
+
 end
