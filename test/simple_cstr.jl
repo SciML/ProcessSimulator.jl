@@ -86,7 +86,7 @@ guesses = [
     outlet.m => 0.0,
 ]
 
-flowsheet, idx = structural_simplify(flowsheet_, (first.(inp), []))
+flowsheet = structural_simplify(flowsheet_, (first.(inp), []))
 
 prob = ODEProblem(flowsheet, u0, (0, 2) .* 3600.0, vcat(inp); guesses = guesses)
 sol = solve(prob, QNDF(), abstol = 1.0e-6, reltol = 1.0e-6)

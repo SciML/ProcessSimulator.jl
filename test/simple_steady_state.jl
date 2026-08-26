@@ -38,7 +38,7 @@ inp_comp = [
     outlet.p => 1.0e6,
 ]
 out_comp = [comp.W]
-compressor, idx = structural_simplify(compressor_, (first.(inp_comp), out_comp))
+compressor = structural_simplify(compressor_, (first.(inp_comp), out_comp))
 
 u0_comp = [
     (u => 1.0 for u in unknowns(compressor))...,
@@ -105,7 +105,7 @@ out = [
     turb_34.W,
 ]
 
-flowsheet, idx = structural_simplify(flowsheet_, (first.(inp), out))
+flowsheet = structural_simplify(flowsheet_, (first.(inp), out))
 
 u0 = [u => 1.0 for u in unknowns(flowsheet)]
 
