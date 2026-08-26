@@ -59,11 +59,15 @@ eqs = [
 
 pars = []
 
+x_frac = F ./ sum(F)
 inp = [
     inlet.T => 297.0,
     inlet.p => 1.0e5,
     inlet.n => sum(F),
-    inlet.xᵢ => F ./ sum(F),
+    inlet.xᵢ[1] => x_frac[1],
+    inlet.xᵢ[2] => x_frac[2],
+    inlet.xᵢ[3] => x_frac[3],
+    inlet.xᵢ[4] => x_frac[4],
     outlet.p => 1.0e5,
 ]
 
