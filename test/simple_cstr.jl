@@ -59,13 +59,15 @@ eqs = [
 
 pars = []
 
+x_frac = F ./ sum(F)
 inp = [
     inlet.T => 297.0,
     inlet.p => 1.0e5,
     inlet.n => sum(F),
-    inlet.xᵢ[1] => F[1] / sum(F),
-    inlet.xᵢ[2] => F[2] / sum(F),
-    inlet.xᵢ[3] => F[3] / sum(F),
+    inlet.xᵢ[1] => x_frac[1],
+    inlet.xᵢ[2] => x_frac[2],
+    inlet.xᵢ[3] => x_frac[3],
+    inlet.xᵢ[4] => x_frac[4],
     outlet.p => 1.0e5,
 ]
 
@@ -88,7 +90,7 @@ guesses = [
     outlet.m => 0.0,
 ]
 
-flowsheet, idx = structural_simplify(flowsheet_, (first.(inp), []))
+flowsheet = structural_simplify(flowsheet_, (first.(inp), []))
 
 prob = ODEProblem(flowsheet, u0, (0, 2) .* 3600.0, vcat(inp); guesses = guesses)
 sol = solve(prob, QNDF(), abstol = 1.0e-6, reltol = 1.0e-6)
