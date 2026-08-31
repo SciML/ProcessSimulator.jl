@@ -2,13 +2,13 @@
     # Subsystems
     stages = [
         SimpleStage(
-                ms; name = "stage$i", add_flows = sum(
-                    i .==
+            ms; name = "stage$i", add_flows = sum(
+                i .==
                     [
-                        1, N_stages,
-                    ]
-                ) + sum(i .== i_feeds)
-            ) for i in 1:N_stages
+                    1, N_stages,
+                ]
+            ) + sum(i .== i_feeds)
+        ) for i in 1:N_stages
     ]
 
     # Connect stages
