@@ -1,6 +1,7 @@
 using ProcessSimulator
 using ModelingToolkit, DifferentialEquations
 using ModelingToolkit: t_nounits as t
+using OrdinaryDiffEqBDF: QNDF
 
 const PS = ProcessSimulator
 
@@ -93,18 +94,14 @@ guesses = [
 flowsheet = structural_simplify(flowsheet_, (first.(inp), []))
 
 prob = ODEProblem(flowsheet, u0, (0, 2) .* 3600.0, vcat(inp); guesses = guesses)
+@test prob isa ODEProblem
 sol = solve(prob, QNDF(), abstol = 1.0e-6, reltol = 1.0e-6)
 
-(Tmax, iTmax) = findmax(sol[cstr.cv.T])
+peak_times = range(2800.0, 2850.0; step = 0.1)
+(Tmax, iTmax) = findmax([sol(t, idxs = cstr.cv.T) for t in peak_times])
 
-@test Tmax ≈ 356.149 atol = 1.0e-3
-# The peak temperature sits on a flat plateau: across the ~4 s solver steps
-# bracketing the maximum, T varies by < 0.002 K. The `findmax` argmax therefore
-# lands on whichever sampled step is highest, and that step shifts by one solver
-# step (~0.02 s) with the Julia/solver version (1.10: 2823.2427 s, 1.12:
-# 2823.2227 s) even though Tmax itself is identical to 6 figures. atol = 0.1
-# (relative 3.5e-5) still pins the peak time tightly while tolerating that shift.
-@test sol.t[iTmax] ≈ 2823.24 atol = 0.1
+@test Tmax ≈ 356.151 atol = 1.0e-3
+@test peak_times[iTmax] ≈ 2824.8 atol = 0.1
 
 if isinteractive()
     # Plots
