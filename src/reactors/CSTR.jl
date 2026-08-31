@@ -59,27 +59,27 @@ julia> nameof(reactor)
         cv.c2.T ~ cv.T,     # Change of moles by reaction
         [
             cv.ΔnR[i] ~ reac.r(
-                    cv.p,
-                    cv.T,
-                    collect(
-                        cv.xᵢ[
-                            1, :,
-                        ]
-                    )
-                ) * reac.ν[i] * cv.n
+                cv.p,
+                cv.T,
+                collect(
+                    cv.xᵢ[
+                        1, :,
+                    ]
+                )
+            ) * reac.ν[i] * cv.n
                 for i in 1:ms.N_c,
                 reac in ms.reaction[i_reacts]
         ]...,     # Enthalpy of reaction
         [
             cv.ΔHᵣ ~ reac.r(
-                    cv.p,
-                    cv.T,
-                    collect(
-                        cv.xᵢ[
-                            1, :,
-                        ]
-                    )
-                ) * reac.Δhᵣ(cv.T) * cv.n
+                cv.p,
+                cv.T,
+                collect(
+                    cv.xᵢ[
+                        1, :,
+                    ]
+                )
+            ) * reac.Δhᵣ(cv.T) * cv.n
                 for reac in ms.reaction[i_reacts]
         ]...,
     ]

@@ -114,9 +114,9 @@ if isinteractive()
     plot!(ps[1], sol.t / 3600, sol[cstr.cv.T], label = "T", ylabel = "T / K")
     [
         plot!(
-                ps[2], sol.t / 3600, sol[cstr.cv.xᵢ[1, i]];
-                label = matsource.components[i], ylabel = "xᵢ / mol/mol"
-            ) for i in 1:4
+            ps[2], sol.t / 3600, sol[cstr.cv.xᵢ[1, i]];
+            label = matsource.components[i], ylabel = "xᵢ / mol/mol"
+        ) for i in 1:4
     ]
     plot(ps...; layout = (1, 2), size = (800, 400))
 end
