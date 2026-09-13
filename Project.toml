@@ -12,6 +12,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 [compat]
 DifferentialEquations = "8"
 ModelingToolkit = "11.28"
+OrdinaryDiffEqBDF = "2"
 PrecompileTools = "1"
 SafeTestsets = "0.1"
 SciMLPublic = "1"
@@ -24,7 +25,8 @@ julia = "1.10"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+OrdinaryDiffEqBDF = "6ad6398a-0878-4a85-9266-38940aa047c8"
 SciMLTesting = "09d9d899-5365-40a9-917a-5f67fddea283"
 
 [targets]
-test = ["Test", "SafeTestsets", "DifferentialEquations", "SciMLTesting"]
+test = ["Test", "SafeTestsets", "DifferentialEquations", "OrdinaryDiffEqBDF", "SciMLTesting"]

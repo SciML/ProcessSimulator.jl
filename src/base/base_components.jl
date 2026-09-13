@@ -144,9 +144,9 @@ end
     vars = @variables begin
         T(t), [description = "temperature", bounds = (0, Inf)]         #, unit=u"K"]
         p(t), [description = "pressure", bounds = (0, Inf)]            #, unit=u"Pa"]
-        ϱ(t)[1:N_ph], [description = "density", bounds = (0, Inf)]             #, unit=u"mol m^-3"]
-        (nᵢ(t))[1:N_ph, 1:ms.N_c], [description = "molar holdup", bounds = (0, Inf)]        #, unit=u"mol"]
-        (xᵢ(t))[1:N_ph, 1:ms.N_c], [description = "mole fractions", bounds = (0, 1)]        #, unit=u"mol mol^-1"]
+        ϱ(t)[1:N_ph], [description = "density", bounds = (zeros(N_ph), fill(Inf, N_ph))]             #, unit=u"mol m^-3"]
+        (nᵢ(t))[1:N_ph, 1:ms.N_c], [description = "molar holdup", bounds = (zeros(N_ph, ms.N_c), fill(Inf, N_ph, ms.N_c))]        #, unit=u"mol"]
+        (xᵢ(t))[1:N_ph, 1:ms.N_c], [description = "mole fractions", bounds = (zeros(N_ph, ms.N_c), ones(N_ph, ms.N_c))]        #, unit=u"mol mol^-1"]
         n(t), [description = "total molar holdup", bounds = (0, Inf)]  #, unit=u"mol"]
         U(t), [description = "internal energy"]                     #, unit=u"J"]
         ΔH(t), [description = "enthalpy difference inlets/outlets"]  #, unit=u"J/s"]
