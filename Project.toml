@@ -11,7 +11,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 DifferentialEquations = "8"
-ModelingToolkit = "11.28"
+ModelingToolkit = "11.44"
 OrdinaryDiffEqBDF = "2"
 PrecompileTools = "1"
 SafeTestsets = "0.1"
